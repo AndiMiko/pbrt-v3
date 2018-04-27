@@ -124,6 +124,20 @@ class SpatialLightDistribution : public LightDistribution {
     size_t hashTableSize;
 };
 
+class PhotonBasedLightDistribution : public LightDistribution {
+public:
+	PhotonBasedLightDistribution(const Scene &scene);
+	const Distribution1D *Lookup(const Point3f &p) const;
+
+private:
+	// Compute the sampling distribution for the voxel with integer
+	// coordiantes given by "pi".
+	Distribution1D *ComputeDistribution(Point3i pi) const;
+
+	const Scene &scene;
+	std::unique_ptr<Distribution1D> distrib;
+};
+
 }  // namespace pbrt
 
 #endif  // PBRT_CORE_LIGHTDISTRIB_H

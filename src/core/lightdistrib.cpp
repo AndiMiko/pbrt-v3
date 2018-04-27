@@ -56,6 +56,9 @@ std::unique_ptr<LightDistribution> CreateLightSampleDistribution(
     else if (name == "spatial")
         return std::unique_ptr<LightDistribution>{
             new SpatialLightDistribution(scene)};
+	else if (name == "photonbased")
+		return std::unique_ptr<LightDistribution>{
+		new PhotonBasedLightDistribution(scene)};
     else {
         Error(
             "Light sample distribution type \"%s\" unknown. Using \"spatial\".",
@@ -297,6 +300,15 @@ SpatialLightDistribution::ComputeDistribution(Point3i pi) const {
 
     // Compute a sampling distribution from the accumulated contributions.
     return new Distribution1D(&lightContrib[0], int(lightContrib.size()));
+}
+
+PhotonBasedLightDistribution::PhotonBasedLightDistribution(const Scene &scene) : scene(scene) {
+	std::vector<Float> prob(scene.lights.size(), Float(1));
+	distrib.reset(new Distribution1D(&prob[0], int(prob.size())));
+}
+
+const Distribution1D *PhotonBasedLightDistribution::Lookup(const Point3f &p) const {
+	return distrib.get();
 }
 
 }  // namespace pbrt
