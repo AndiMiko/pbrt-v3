@@ -130,12 +130,10 @@ public:
 	const Distribution1D *Lookup(const Point3f &p) const;
 
 private:
-	// Compute the sampling distribution for the voxel with integer
-	// coordiantes given by "pi".
-	Distribution1D *ComputeDistribution(Point3i pi) const;
-
 	const Scene &scene;
 	std::unique_ptr<Distribution1D> distrib;
+
+	void shootPhotons(const Scene &scene, const Distribution1D *lightDistr);
 };
 
 }  // namespace pbrt

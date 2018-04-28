@@ -305,10 +305,66 @@ SpatialLightDistribution::ComputeDistribution(Point3i pi) const {
 PhotonBasedLightDistribution::PhotonBasedLightDistribution(const Scene &scene) : scene(scene) {
 	std::vector<Float> prob(scene.lights.size(), Float(1));
 	distrib.reset(new Distribution1D(&prob[0], int(prob.size())));
+	const Distribution1D *lightPowerDistribution = ComputeLightPowerDistribution(scene).get();
+	shootPhotons(scene, lightPowerDistribution);
 }
 
 const Distribution1D *PhotonBasedLightDistribution::Lookup(const Point3f &p) const {
 	return distrib.get();
 }
+
+void PhotonBasedLightDistribution::shootPhotons(const Scene &scene, const Distribution1D *lightDistr) {
+
+	//std::vector<MemoryArena> photonShootArenas(MaxThreadIndex());
+	ParallelFor([&](int photonIndex) {
+		// MemoryArena &arena = photonShootArenas[ThreadIndex];
+		// Follow photon path for _photonIndex_
+		uint64_t haltonIndex = photonIndex;
+		int haltonDim = 0;
+
+		// Choose light to shoot photon from
+		Float lightPdf;
+		Float lightSample = RadicalInverse(haltonDim++, haltonIndex);
+		int lightNum = lightDistr->SampleDiscrete(lightSample, &lightPdf);
+		const std::shared_ptr<Light> &light = scene.lights[lightNum];
+
+		// Compute sample values for photon ray leaving light source
+		Point2f uLight0(RadicalInverse(haltonDim, haltonIndex),
+			RadicalInverse(haltonDim + 1, haltonIndex));
+		Point2f uLight1(RadicalInverse(haltonDim + 2, haltonIndex),
+			RadicalInverse(haltonDim + 3, haltonIndex));
+		// Camera not available here, add Camera to the Scene object?
+		Float uLightTime = 0; //Lerp(RadicalInverse(haltonDim + 4, haltonIndex), camera->shutterOpen, camera->shutterClose);
+		haltonDim += 5;
+
+		// Generate _photonRay_ from light source and initialize _beta_
+		RayDifferential photonRay;
+		Normal3f nLight;
+		Float pdfPos, pdfDir;
+		Spectrum Le =
+			light->Sample_Le(uLight0, uLight1, uLightTime, &photonRay,
+				&nLight, &pdfPos, &pdfDir);
+		if (pdfPos == 0 || pdfDir == 0 || Le.IsBlack()) return;
+		Spectrum beta = (AbsDot(nLight, photonRay.d) * Le) /
+			(lightPdf * pdfPos * pdfDir);
+		if (beta.IsBlack()) return;
+
+		// Follow photon through scene and record intersection
+		SurfaceInteraction isect;
+		if (scene.Intersect(photonRay, &isect)) {
+			// Add photon to kd-tree if intersection found and is difuse
+			// TODO: difuse
+
+			// store in kd-tree: isect.p, beta;
+
+			// Compute BSDF at photon intersection point
+			//isect.ComputeScatteringFunctions(photonRay, arena, true,
+			//	TransportMode::Importance);
+
+		}
+		//arena.Reset();
+	}, (int64_t) pow(2, 20), 65536);
+}
+
 
 }  // namespace pbrt
