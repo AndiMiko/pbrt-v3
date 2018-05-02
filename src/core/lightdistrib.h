@@ -136,7 +136,8 @@ private:
 	int nVoxels[3];
 	struct HashEntry {
 		std::atomic<uint64_t> packedPos;
-		std::atomic<Distribution1D *> distribution;
+		std::unique_ptr<std::vector<std::atomic<Float>>> lightContrib;
+		Distribution1D *distribution;
 	};
 	mutable std::unique_ptr<HashEntry[]> hashTable;
 	size_t hashTableSize;

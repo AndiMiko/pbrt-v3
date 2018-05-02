@@ -335,7 +335,8 @@ void PhotonBasedVoxelLightDistribution::initVoxelHashTable(int maxVoxels) {
 	hashTable.reset(new HashEntry[hashTableSize]);
 	for (int i = 0; i < hashTableSize; ++i) {
 		hashTable[i].packedPos.store(invalidPackedPos);
-		hashTable[i].distribution.store(nullptr);
+		hashTable[i].lightContrib.reset(
+			new std::vector<std::atomic<Float>>(scene.lights.size(), std::atomic<Float>(0)));
 	}
 
 	LOG(INFO) << "PhotonBasedVoxelLightDistribution: scene bounds " << b <<
@@ -377,6 +378,8 @@ void PhotonBasedVoxelLightDistribution::shootPhotons(const Scene &scene, const D
 		Spectrum beta = (AbsDot(nLight, photonRay.d) * Le) /
 			(lightPdf * pdfPos * pdfDir);
 		if (beta.IsBlack()) return;
+		// TODO: is this correct? can we assume all beta's are the same?
+		Float fbeta = beta.MaxComponentValue();
 
 		// Follow photon through scene and record intersection
 		SurfaceInteraction isect;
@@ -423,33 +426,17 @@ void PhotonBasedVoxelLightDistribution::shootPhotons(const Scene &scene, const D
 				HashEntry &entry = hashTable[hash];
 				// Does the hash table entry at offset |hash| match the current point?
 				uint64_t entryPackedPos = entry.packedPos.load(std::memory_order_acquire);
-				if (entryPackedPos == packedPos) {
-					// Yes! Most of the time, there should already by a light
-					// sampling distribution available.
-					Distribution1D *dist = entry.distribution.load(std::memory_order_acquire);
-					if (dist == nullptr) {
-						// Rarely, another thread will have already done a lookup
-						// at this point, found that there isn't a sampling
-						// distribution, and will already be computing the
-						// distribution for the point.  In this case, we spin until
-						// the sampling distribution is ready.  We assume that this
-						// is a rare case, so don't do anything more sophisticated
-						// than spinning.
-						ProfilePhase _(Prof::LightDistribSpinWait);
-						while ((dist = entry.distribution.load(std::memory_order_acquire)) ==
-							nullptr)
-							// spin :-(. If we were fancy, we'd have any threads
-							// that hit this instead help out with computing the
-							// distribution for the voxel...
-							;
-					}
-					// We have a valid sampling distribution.
+				uint64_t invalid = invalidPackedPos;
+				if (entryPackedPos == packedPos || entry.packedPos.compare_exchange_weak(invalid, packedPos)) {
+					// Hash entry is already associated to the packedPos OR hashentrypos is invalid
+					// and we try to claim this hashentry for this packedPos
+					std::vector<std::atomic<Float>> lightContrib = *entry.lightContrib.get();
 					ReportValue(nProbesPerLookup, nProbes);
-
-
-					return dist;
-				}
-				else if (entryPackedPos != invalidPackedPos) {
+					//TODO: make this threadsafe!?
+					lightContrib[lightNum].store(fbeta + lightContrib[lightNum].load());
+					//LOG(INFO) << "Photon: " << photonIndex << " from lightnr: " << lightNum << " contributed to hash " << hash << " with beta " << fbeta;
+					break;
+				} else {
 					// The hash table entry we're checking has already been
 					// allocated for another voxel. Advance to the next entry with
 					// quadratic probing.
@@ -458,36 +445,39 @@ void PhotonBasedVoxelLightDistribution::shootPhotons(const Scene &scene, const D
 						hash %= hashTableSize;
 					++step;
 				}
-				else {
-					// We have found an invalid entry. (Though this may have
-					// changed since the load into entryPackedPos above.)  Use an
-					// atomic compare/exchange to try to claim this entry for the
-					// current position.
-					uint64_t invalid = invalidPackedPos;
-					if (entry.packedPos.compare_exchange_weak(invalid, packedPos)) {
-						// Success; we've claimed this position for this voxel's
-						// distribution. Now compute the sampling distribution and
-						// add it to the hash table. As long as packedPos has been
-						// set but the entry's distribution pointer is nullptr, any
-						// other threads looking up the distribution for this voxel
-						// will spin wait until the distribution pointer is
-						// written.
-						Distribution1D *dist = ComputeDistribution(pi);
-						entry.distribution.store(dist, std::memory_order_release);
-						ReportValue(nProbesPerLookup, nProbes);
-						return dist;
-					}
-				}
 			}
-
-
-			// Compute BSDF at photon intersection point
-			//isect.ComputeScatteringFunctions(photonRay, arena, true,
-			//	TransportMode::Importance);
 
 		}
 		//arena.Reset();
-	}, (int64_t) pow(2, 20), 65536);
+	}, (int64_t)pow(2, 12), (int64_t)pow(2, 8));
+	//}, (int64_t) pow(2, 20), 65536);
+
+	for (int i = 0; i < hashTableSize; ++i) {
+		std::vector<std::atomic<Float>> *lightContrib = hashTable[i].lightContrib.get();
+		std::vector<Float> lightContribF(scene.lights.size(), Float(0));
+		for (size_t j = 0; j < lightContrib->size(); ++j) {
+			lightContribF[j] = (*lightContrib)[j].load();
+		}
+		// We don't want to leave any lights with a zero probability; it's
+		// possible that a light contributes to points in the voxel even though
+		// we didn't find such a point when sampling above.  Therefore, compute
+		// a minimum (small) weight and ensure that all lights are given at
+		// least the corresponding probability.
+		Float sumContrib =
+			std::accumulate(lightContribF.begin(), lightContribF.end(), Float(0));
+		Float avgContrib = sumContrib / lightContrib->size();
+		Float minContrib = (avgContrib > 0) ? .001 * avgContrib : 1;
+		for (size_t j = 0; j < lightContrib->size(); ++j) {
+			VLOG(2) << "hashtable = " << i << ", light " << j << " contrib = "
+				<< lightContribF[i];
+			lightContribF[j] = std::max(lightContribF[j], minContrib);
+		}
+		LOG(INFO) << "Initialized light distribution in voxel pi= " << i <<
+			", avgContrib = " << avgContrib;
+
+		hashTable[i].distribution = new Distribution1D(&lightContribF[0], int(lightContrib->size()));
+	}
+
 }
 
 
