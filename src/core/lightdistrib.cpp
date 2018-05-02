@@ -58,7 +58,7 @@ std::unique_ptr<LightDistribution> CreateLightSampleDistribution(
             new SpatialLightDistribution(scene)};
 	else if (name == "photonbased")
 		return std::unique_ptr<LightDistribution>{
-		new PhotonBasedLightDistribution(scene)};
+		new PhotonBasedVoxelLightDistribution(scene)};
     else {
         Error(
             "Light sample distribution type \"%s\" unknown. Using \"spatial\".",
@@ -302,18 +302,47 @@ SpatialLightDistribution::ComputeDistribution(Point3i pi) const {
     return new Distribution1D(&lightContrib[0], int(lightContrib.size()));
 }
 
-PhotonBasedLightDistribution::PhotonBasedLightDistribution(const Scene &scene) : scene(scene) {
+PhotonBasedVoxelLightDistribution::PhotonBasedVoxelLightDistribution(const Scene &scene, int maxVoxels) : scene(scene) {
+	ProfilePhase _(Prof::LightDistribCreation);
 	std::vector<Float> prob(scene.lights.size(), Float(1));
 	distrib.reset(new Distribution1D(&prob[0], int(prob.size())));
 	const Distribution1D *lightPowerDistribution = ComputeLightPowerDistribution(scene).get();
+	initVoxelHashTable(maxVoxels);
 	shootPhotons(scene, lightPowerDistribution);
 }
 
-const Distribution1D *PhotonBasedLightDistribution::Lookup(const Point3f &p) const {
+const Distribution1D *PhotonBasedVoxelLightDistribution::Lookup(const Point3f &p) const {
+	ProfilePhase _(Prof::LightDistribLookup);
 	return distrib.get();
 }
 
-void PhotonBasedLightDistribution::shootPhotons(const Scene &scene, const Distribution1D *lightDistr) {
+void PhotonBasedVoxelLightDistribution::initVoxelHashTable(int maxVoxels) {
+	// Compute the number of voxels so that the widest scene bounding box
+	// dimension has maxVoxels voxels and the other dimensions have a number
+	// of voxels so that voxels are roughly cube shaped.
+	Bounds3f b = scene.WorldBound();
+	Vector3f diag = b.Diagonal();
+	Float bmax = diag[b.MaximumExtent()];
+	for (int i = 0; i < 3; ++i) {
+		nVoxels[i] = std::max(1, int(std::round(diag[i] / bmax * maxVoxels)));
+		// In the Lookup() method, we require that 20 or fewer bits be
+		// sufficient to represent each coordinate value. It's fairly hard
+		// to imagine that this would ever be a problem.
+		CHECK_LT(nVoxels[i], 1 << 20);
+	}
+
+	hashTableSize = 4 * nVoxels[0] * nVoxels[1] * nVoxels[2];
+	hashTable.reset(new HashEntry[hashTableSize]);
+	for (int i = 0; i < hashTableSize; ++i) {
+		hashTable[i].packedPos.store(invalidPackedPos);
+		hashTable[i].distribution.store(nullptr);
+	}
+
+	LOG(INFO) << "PhotonBasedVoxelLightDistribution: scene bounds " << b <<
+		", voxel res (" << nVoxels[0] << ", " << nVoxels[1] << ", " <<
+		nVoxels[2] << ")";
+}
+void PhotonBasedVoxelLightDistribution::shootPhotons(const Scene &scene, const Distribution1D *lightDistr) {
 
 	//std::vector<MemoryArena> photonShootArenas(MaxThreadIndex());
 	ParallelFor([&](int photonIndex) {
@@ -355,7 +384,102 @@ void PhotonBasedLightDistribution::shootPhotons(const Scene &scene, const Distri
 			// Add photon to kd-tree if intersection found and is difuse
 			// TODO: difuse
 
-			// store in kd-tree: isect.p, beta;
+			// First, compute integer voxel coordinates for the given point |p|
+			// with respect to the overall voxel grid.
+			Vector3f offset = scene.WorldBound().Offset(isect.p);  // offset in [0,1].
+			Point3i pi;
+			for (int i = 0; i < 3; ++i)
+				// The clamp should almost never be necessary, but is there to be
+				// robust to computed intersection points being slightly outside
+				// the scene bounds due to floating-point roundoff error.
+				pi[i] = Clamp(int(offset[i] * nVoxels[i]), 0, nVoxels[i] - 1);
+
+			// Pack the 3D integer voxel coordinates into a single 64-bit value.
+			uint64_t packedPos = (uint64_t(pi[0]) << 40) | (uint64_t(pi[1]) << 20) | pi[2];
+			CHECK_NE(packedPos, invalidPackedPos);
+
+			// Compute a hash value from the packed voxel coordinates.  We could
+			// just take packedPos mod the hash table size, but since packedPos
+			// isn't necessarily well distributed on its own, it's worthwhile to do
+			// a little work to make sure that its bits values are individually
+			// fairly random. For details of and motivation for the following, see:
+			// http://zimbry.blogspot.ch/2011/09/better-bit-mixing-improving-on.html
+			uint64_t hash = packedPos;
+			hash ^= (hash >> 31);
+			hash *= 0x7fb5d329728ea185;
+			hash ^= (hash >> 27);
+			hash *= 0x81dadef4bc2dd44d;
+			hash ^= (hash >> 33);
+			hash %= hashTableSize;
+			CHECK_GE(hash, 0);
+
+			// Now, see if the hash table already has an entry for the voxel. We'll
+			// use quadratic probing when the hash table entry is already used for
+			// another value; step stores the square root of the probe step.
+			int step = 1;
+			int nProbes = 0;
+			while (true) {
+				++nProbes;
+				HashEntry &entry = hashTable[hash];
+				// Does the hash table entry at offset |hash| match the current point?
+				uint64_t entryPackedPos = entry.packedPos.load(std::memory_order_acquire);
+				if (entryPackedPos == packedPos) {
+					// Yes! Most of the time, there should already by a light
+					// sampling distribution available.
+					Distribution1D *dist = entry.distribution.load(std::memory_order_acquire);
+					if (dist == nullptr) {
+						// Rarely, another thread will have already done a lookup
+						// at this point, found that there isn't a sampling
+						// distribution, and will already be computing the
+						// distribution for the point.  In this case, we spin until
+						// the sampling distribution is ready.  We assume that this
+						// is a rare case, so don't do anything more sophisticated
+						// than spinning.
+						ProfilePhase _(Prof::LightDistribSpinWait);
+						while ((dist = entry.distribution.load(std::memory_order_acquire)) ==
+							nullptr)
+							// spin :-(. If we were fancy, we'd have any threads
+							// that hit this instead help out with computing the
+							// distribution for the voxel...
+							;
+					}
+					// We have a valid sampling distribution.
+					ReportValue(nProbesPerLookup, nProbes);
+
+
+					return dist;
+				}
+				else if (entryPackedPos != invalidPackedPos) {
+					// The hash table entry we're checking has already been
+					// allocated for another voxel. Advance to the next entry with
+					// quadratic probing.
+					hash += step * step;
+					if (hash >= hashTableSize)
+						hash %= hashTableSize;
+					++step;
+				}
+				else {
+					// We have found an invalid entry. (Though this may have
+					// changed since the load into entryPackedPos above.)  Use an
+					// atomic compare/exchange to try to claim this entry for the
+					// current position.
+					uint64_t invalid = invalidPackedPos;
+					if (entry.packedPos.compare_exchange_weak(invalid, packedPos)) {
+						// Success; we've claimed this position for this voxel's
+						// distribution. Now compute the sampling distribution and
+						// add it to the hash table. As long as packedPos has been
+						// set but the entry's distribution pointer is nullptr, any
+						// other threads looking up the distribution for this voxel
+						// will spin wait until the distribution pointer is
+						// written.
+						Distribution1D *dist = ComputeDistribution(pi);
+						entry.distribution.store(dist, std::memory_order_release);
+						ReportValue(nProbesPerLookup, nProbes);
+						return dist;
+					}
+				}
+			}
+
 
 			// Compute BSDF at photon intersection point
 			//isect.ComputeScatteringFunctions(photonRay, arena, true,

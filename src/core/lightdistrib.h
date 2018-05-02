@@ -124,16 +124,26 @@ class SpatialLightDistribution : public LightDistribution {
     size_t hashTableSize;
 };
 
-class PhotonBasedLightDistribution : public LightDistribution {
+class PhotonBasedVoxelLightDistribution : public LightDistribution {
 public:
-	PhotonBasedLightDistribution(const Scene &scene);
+	PhotonBasedVoxelLightDistribution(const Scene &scene, int maxVoxels = 64);
 	const Distribution1D *Lookup(const Point3f &p) const;
 
 private:
 	const Scene &scene;
 	std::unique_ptr<Distribution1D> distrib;
 
+	int nVoxels[3];
+	struct HashEntry {
+		std::atomic<uint64_t> packedPos;
+		std::atomic<Distribution1D *> distribution;
+	};
+	mutable std::unique_ptr<HashEntry[]> hashTable;
+	size_t hashTableSize;
+
+	void initVoxelHashTable(int maxVoxels);
 	void shootPhotons(const Scene &scene, const Distribution1D *lightDistr);
+
 };
 
 }  // namespace pbrt
