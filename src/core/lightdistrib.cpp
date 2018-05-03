@@ -391,7 +391,7 @@ void PhotonBasedVoxelLightDistribution::initVoxelHashTable(int maxVoxels) {
 	for (int i = 0; i < hashTableSize; ++i) {
 		hashTable[i].packedPos.store(invalidPackedPos);
 		hashTable[i].lightContrib.reset(
-			new std::vector<std::atomic<Float>>(scene.lights.size(), std::atomic<Float>(0)));
+			new std::vector<std::atomic<Float>>(scene.lights.size()));
 	}
 
 	LOG(INFO) << "PhotonBasedVoxelLightDistribution: scene bounds " << b <<
@@ -485,10 +485,10 @@ void PhotonBasedVoxelLightDistribution::shootPhotons(const Scene &scene, const D
 				if (entryPackedPos == packedPos || entry.packedPos.compare_exchange_weak(invalid, packedPos)) {
 					// Hash entry is already associated to the packedPos OR hashentrypos is invalid
 					// and we try to claim this hashentry for this packedPos
-					std::vector<std::atomic<Float>> lightContrib = *entry.lightContrib.get();
+					std::vector<std::atomic<Float>>* lightContrib = entry.lightContrib.get();
 					ReportValue(nProbesPerLookup, nProbes);
 					//TODO: make this threadsafe!?
-					lightContrib[lightNum].store(fbeta + lightContrib[lightNum].load());
+					(*lightContrib)[lightNum].store(fbeta + (*lightContrib)[lightNum].load());
 					//LOG(INFO) << "Photon: " << photonIndex << " from lightnr: " << lightNum << " contributed to hash " << hash << " with beta " << fbeta;
 					break;
 				} else {
