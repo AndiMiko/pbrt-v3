@@ -1,7 +1,7 @@
 
 LookAt 400 20 30   0 63 -110   0 0 1
 Rotate -5 0 0 1
-Camera "EnvironmentCamera" "float fov" [39]
+Camera "perspective" "float fov" [39]
 Film "image"  
 "integer xresolution" [700] "integer yresolution" [700]
     "string filename" "images/killeroo-3L.png"
