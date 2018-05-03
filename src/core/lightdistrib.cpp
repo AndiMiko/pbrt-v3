@@ -313,7 +313,62 @@ PhotonBasedVoxelLightDistribution::PhotonBasedVoxelLightDistribution(const Scene
 
 const Distribution1D *PhotonBasedVoxelLightDistribution::Lookup(const Point3f &p) const {
 	ProfilePhase _(Prof::LightDistribLookup);
-	return distrib.get();
+	++nLookups;
+
+	// First, compute integer voxel coordinates for the given point |p|
+	// with respect to the overall voxel grid.
+	Vector3f offset = scene.WorldBound().Offset(p);  // offset in [0,1].
+	Point3i pi;
+	for (int i = 0; i < 3; ++i)
+		// The clamp should almost never be necessary, but is there to be
+		// robust to computed intersection points being slightly outside
+		// the scene bounds due to floating-point roundoff error.
+		pi[i] = Clamp(int(offset[i] * nVoxels[i]), 0, nVoxels[i] - 1);
+
+	// Pack the 3D integer voxel coordinates into a single 64-bit value.
+	uint64_t packedPos = (uint64_t(pi[0]) << 40) | (uint64_t(pi[1]) << 20) | pi[2];
+	CHECK_NE(packedPos, invalidPackedPos);
+
+	// Compute a hash value from the packed voxel coordinates.  We could
+	// just take packedPos mod the hash table size, but since packedPos
+	// isn't necessarily well distributed on its own, it's worthwhile to do
+	// a little work to make sure that its bits values are individually
+	// fairly random. For details of and motivation for the following, see:
+	// http://zimbry.blogspot.ch/2011/09/better-bit-mixing-improving-on.html
+	uint64_t hash = packedPos;
+	hash ^= (hash >> 31);
+	hash *= 0x7fb5d329728ea185;
+	hash ^= (hash >> 27);
+	hash *= 0x81dadef4bc2dd44d;
+	hash ^= (hash >> 33);
+	hash %= hashTableSize;
+	CHECK_GE(hash, 0);
+
+	// Now, see if the hash table already has an entry for the voxel. We'll
+	// use quadratic probing when the hash table entry is already used for
+	// another value; step stores the square root of the probe step.
+	int step = 1;
+	int nProbes = 0;
+	while (true) {
+		++nProbes;
+		HashEntry &entry = hashTable[hash];
+		// Does the hash table entry at offset |hash| match the current point?
+		uint64_t entryPackedPos = entry.packedPos.load(std::memory_order_acquire);
+		if (entryPackedPos == packedPos) {
+			// We have a valid sampling distribution.
+			ReportValue(nProbesPerLookup, nProbes);
+			return entry.distribution;
+		}
+		else {
+			// The hash table entry we're checking has already been
+			// allocated for another voxel. Advance to the next entry with
+			// quadratic probing.
+			hash += step * step;
+			if (hash >= hashTableSize)
+				hash %= hashTableSize;
+			++step;
+		}
+	}
 }
 
 void PhotonBasedVoxelLightDistribution::initVoxelHashTable(int maxVoxels) {
