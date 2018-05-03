@@ -131,7 +131,7 @@ public:
 
 private:
 	const Scene &scene;
-	std::unique_ptr<Distribution1D> distrib;
+	std::unique_ptr<Distribution1D> powerDistrib;
 
 	int nVoxels[3];
 	struct HashEntry {
@@ -143,7 +143,7 @@ private:
 	size_t hashTableSize;
 
 	void initVoxelHashTable(int maxVoxels);
-	void shootPhotons(const Scene &scene, const Distribution1D *lightDistr);
+	void shootPhotons(const Scene &scene);
 
 };
 

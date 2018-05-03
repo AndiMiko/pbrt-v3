@@ -304,11 +304,9 @@ SpatialLightDistribution::ComputeDistribution(Point3i pi) const {
 
 PhotonBasedVoxelLightDistribution::PhotonBasedVoxelLightDistribution(const Scene &scene, int maxVoxels) : scene(scene) {
 	ProfilePhase _(Prof::LightDistribCreation);
-	std::vector<Float> prob(scene.lights.size(), Float(1));
-	distrib.reset(new Distribution1D(&prob[0], int(prob.size())));
-	const Distribution1D *lightPowerDistribution = ComputeLightPowerDistribution(scene).get();
+	powerDistrib = ComputeLightPowerDistribution(scene);
 	initVoxelHashTable(maxVoxels);
-	shootPhotons(scene, lightPowerDistribution);
+	shootPhotons(scene);
 }
 
 const Distribution1D *PhotonBasedVoxelLightDistribution::Lookup(const Point3f &p) const {
@@ -398,7 +396,7 @@ void PhotonBasedVoxelLightDistribution::initVoxelHashTable(int maxVoxels) {
 		", voxel res (" << nVoxels[0] << ", " << nVoxels[1] << ", " <<
 		nVoxels[2] << ")";
 }
-void PhotonBasedVoxelLightDistribution::shootPhotons(const Scene &scene, const Distribution1D *lightDistr) {
+void PhotonBasedVoxelLightDistribution::shootPhotons(const Scene &scene) {
 
 	//std::vector<MemoryArena> photonShootArenas(MaxThreadIndex());
 	ParallelFor([&](int photonIndex) {
@@ -410,7 +408,7 @@ void PhotonBasedVoxelLightDistribution::shootPhotons(const Scene &scene, const D
 		// Choose light to shoot photon from
 		Float lightPdf;
 		Float lightSample = RadicalInverse(haltonDim++, haltonIndex);
-		int lightNum = lightDistr->SampleDiscrete(lightSample, &lightPdf);
+		int lightNum = powerDistrib->SampleDiscrete(lightSample, &lightPdf);
 		const std::shared_ptr<Light> &light = scene.lights[lightNum];
 
 		// Compute sample values for photon ray leaving light source
