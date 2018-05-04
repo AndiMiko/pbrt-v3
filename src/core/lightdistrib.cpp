@@ -355,9 +355,14 @@ const Distribution1D *PhotonBasedVoxelLightDistribution::Lookup(const Point3f &p
 		if (entryPackedPos == packedPos) {
 			// We have a valid sampling distribution.
 			ReportValue(nProbesPerLookup, nProbes);
+			LOG(INFO) << "PhotonBasedVoxelLightDistribution: Using photondistribution: ";
 			return entry.distribution;
 		}
-		else {
+		else if (entryPackedPos == invalidPackedPos) {
+			// no photon arrived on this hash, use powerdistribution instead
+			LOG(INFO) << "PhotonBasedVoxelLightDistribution: Using powerdistribution, no photons arrived: " << packedPos;
+			return powerDistrib.get();
+		} else {
 			// The hash table entry we're checking has already been
 			// allocated for another voxel. Advance to the next entry with
 			// quadratic probing.
