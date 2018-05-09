@@ -103,6 +103,15 @@ struct Distribution1D {
         return func[index] / (funcInt * Count());
     }
 
+	std::string ToString() const {
+		std::string str = "distr: ";
+		std::stringstream ss;
+		for (int i = 0; i < func.size(); ++i) {
+			ss << "sample " << i << " ~ " << ((funcInt * Count()) * 100) << "%, ";
+		}
+	}
+
+
     // Distribution1D Public Data
     std::vector<Float> func, cdf;
     Float funcInt;
