@@ -58,7 +58,7 @@ std::unique_ptr<LightDistribution> CreateLightSampleDistribution(
             new SpatialLightDistribution(scene)};
 	else if (name == "photonbased")
 		return std::unique_ptr<LightDistribution>{
-		new PhotonBasedVoxelLightDistribution(scene)};
+			new PhotonBasedVoxelLightDistribution(scene)};
     else {
         Error(
             "Light sample distribution type \"%s\" unknown. Using \"spatial\".",
@@ -355,12 +355,12 @@ const Distribution1D *PhotonBasedVoxelLightDistribution::Lookup(const Point3f &p
 		if (entryPackedPos == packedPos) {
 			// We have a valid sampling distribution.
 			ReportValue(nProbesPerLookup, nProbes);
-			LOG(INFO) << "PhotonBasedVoxelLightDistribution: Using photondistribution: ";
+			LOG_FIRST_N(INFO, 1000) << "PhotonBasedVoxelLightDistribution: Using photondistribution: " << entry.distribution->ToString();
 			return entry.distribution;
 		}
 		else if (entryPackedPos == invalidPackedPos) {
 			// no photon arrived on this hash, use powerdistribution instead
-			LOG(INFO) << "PhotonBasedVoxelLightDistribution: Using powerdistribution, no photons arrived: " << packedPos;
+			//LOG(INFO) << "PhotonBasedVoxelLightDistribution: Using powerdistribution, no photons arrived: " << packedPos;
 			return powerDistrib.get();
 		} else {
 			// The hash table entry we're checking has already been
@@ -507,7 +507,7 @@ void PhotonBasedVoxelLightDistribution::shootPhotons(const Scene &scene) {
 
 		}
 		//arena.Reset();
-	}, (int64_t)pow(2, 12), (int64_t)pow(2, 8));
+	}, (int64_t)pow(2, 26), 4096);
 	//}, (int64_t) pow(2, 20), 65536);
 
 	for (int i = 0; i < hashTableSize; ++i) {
@@ -530,10 +530,11 @@ void PhotonBasedVoxelLightDistribution::shootPhotons(const Scene &scene) {
 				<< lightContribF[i];
 			lightContribF[j] = std::max(lightContribF[j], minContrib);
 		}
-		LOG(INFO) << "Initialized light distribution in voxel pi= " << i <<
-			", avgContrib = " << avgContrib;
+		//
+		//	", avgContrib = " << avgContrib;
 
-		hashTable[i].distribution = new Distribution1D(&lightContribF[0], int(lightContrib->size()));
+		hashTable[i].distribution = new Distribution1D(&lightContribF[0], int(lightContribF.size()));
+		LOG_FIRST_N(INFO, 1000) << "Initialized light distribution in voxel pi= " << i << " " << hashTable[i].distribution->ToString();
 	}
 
 }
