@@ -40,6 +40,7 @@
 #include "stats.h"
 #include "integrator.h"
 #include <numeric>
+#include <nanoflann.hpp>
 
 namespace pbrt {
 
