@@ -104,11 +104,12 @@ struct Distribution1D {
     }
 
 	std::string ToString() const {
-		std::string str = "distr: ";
 		std::stringstream ss;
+		ss << "distr: ";
 		for (int i = 0; i < func.size(); ++i) {
-			ss << "sample " << i << " ~ " << ((funcInt * Count()) * 100) << "%, ";
+			ss << "sample " << i << " ~ " << (func[i] / (funcInt * Count()) * 100) << "%, ";
 		}
+		return ss.str();
 	}
 
 
