@@ -147,6 +147,44 @@ private:
 
 };
 
+class PhotonBasedKdTreeLightDistribution : public LightDistribution {
+public:
+	PhotonBasedKdTreeLightDistribution(const Scene &scene);
+	const Distribution1D *Lookup(const Point3f &p) const;
+
+	template <typename T>
+	struct PhotonCloud
+	{
+		struct Point
+		{
+			T  x, y, z;
+		};
+
+		std::vector<Point> pts;
+
+		// Must return the number of data points
+		inline size_t kdtree_get_point_count() const { return pts.size(); }
+
+		// Returns the dim'th component of the idx'th point in the class
+		inline T kdtree_get_pt(const size_t idx, int dim) const
+		{
+			if (dim == 0) return pts[idx].x;
+			else if (dim == 1) return pts[idx].y;
+			else return pts[idx].z;
+		}
+
+		template <class BBOX>
+		bool kdtree_get_bbox(BBOX& /* bb */) const { return false; }
+	};
+
+private:
+	const Scene &scene;
+	std::unique_ptr<Distribution1D> powerDistrib;
+
+	void shootPhotons(const Scene &scene);
+
+};
+
 }  // namespace pbrt
 
 #endif  // PBRT_CORE_LIGHTDISTRIB_H

@@ -57,9 +57,12 @@ std::unique_ptr<LightDistribution> CreateLightSampleDistribution(
     else if (name == "spatial")
         return std::unique_ptr<LightDistribution>{
             new SpatialLightDistribution(scene)};
-	else if (name == "photonbased")
+	else if (name == "photonvoxel")
 		return std::unique_ptr<LightDistribution>{
 			new PhotonBasedVoxelLightDistribution(scene)};
+	else if (name == "photontree")
+		return std::unique_ptr<LightDistribution>{
+			new PhotonBasedKdTreeLightDistribution(scene)};
     else {
         Error(
             "Light sample distribution type \"%s\" unknown. Using \"spatial\".",
@@ -402,6 +405,7 @@ void PhotonBasedVoxelLightDistribution::initVoxelHashTable(int maxVoxels) {
 		", voxel res (" << nVoxels[0] << ", " << nVoxels[1] << ", " <<
 		nVoxels[2] << ")";
 }
+
 void PhotonBasedVoxelLightDistribution::shootPhotons(const Scene &scene) {
 
 	//std::vector<MemoryArena> photonShootArenas(MaxThreadIndex());
@@ -496,6 +500,158 @@ void PhotonBasedVoxelLightDistribution::shootPhotons(const Scene &scene) {
 					//LOG(INFO) << "Photon: " << photonIndex << " from lightnr: " << lightNum << " contributed to hash " << hash << " with beta " << fbeta;
 					break;
 				} else {
+					// The hash table entry we're checking has already been
+					// allocated for another voxel. Advance to the next entry with
+					// quadratic probing.
+					hash += step * step;
+					if (hash >= hashTableSize)
+						hash %= hashTableSize;
+					++step;
+				}
+			}
+
+		}
+		//arena.Reset();
+	}, (int64_t)pow(2, 26), 4096);
+	//}, (int64_t) pow(2, 20), 65536);
+
+	for (int i = 0; i < hashTableSize; ++i) {
+		std::vector<std::atomic<Float>> *lightContrib = hashTable[i].lightContrib.get();
+		std::vector<Float> lightContribF(scene.lights.size(), Float(0));
+		for (size_t j = 0; j < lightContrib->size(); ++j) {
+			lightContribF[j] = (*lightContrib)[j].load();
+		}
+		// We don't want to leave any lights with a zero probability; it's
+		// possible that a light contributes to points in the voxel even though
+		// we didn't find such a point when sampling above.  Therefore, compute
+		// a minimum (small) weight and ensure that all lights are given at
+		// least the corresponding probability.
+		Float sumContrib =
+			std::accumulate(lightContribF.begin(), lightContribF.end(), Float(0));
+		Float avgContrib = sumContrib / lightContrib->size();
+		Float minContrib = (avgContrib > 0) ? .001 * avgContrib : 1;
+		for (size_t j = 0; j < lightContrib->size(); ++j) {
+			VLOG(2) << "hashtable = " << i << ", light " << j << " contrib = "
+				<< lightContribF[i];
+			lightContribF[j] = std::max(lightContribF[j], minContrib);
+		}
+		//
+		//	", avgContrib = " << avgContrib;
+
+		hashTable[i].distribution = new Distribution1D(&lightContribF[0], int(lightContribF.size()));
+		LOG_FIRST_N(INFO, 1000) << "Initialized light distribution in voxel pi= " << i << " " << hashTable[i].distribution->ToString();
+	}
+
+}
+
+using namespace std;
+using namespace nanoflann;
+
+PhotonBasedKdTreeLightDistribution::PhotonBasedKdTreeLightDistribution(const Scene &scene) : scene(scene) {
+	ProfilePhase _(Prof::LightDistribCreation);
+	powerDistrib = ComputeLightPowerDistribution(scene);
+
+	shootPhotons(scene);
+	my_kd_tree_t index(3 /*dim*/, cloud, KDTreeSingleIndexAdaptorParams(10 /* max leaf */));
+	index.buildIndex();
+
+}
+
+void PhotonBasedKdTreeLightDistribution::shootPhotons(const Scene &scene) {
+
+	//std::vector<MemoryArena> photonShootArenas(MaxThreadIndex());
+	ParallelFor([&](int photonIndex) {
+		// MemoryArena &arena = photonShootArenas[ThreadIndex];
+		// Follow photon path for _photonIndex_
+		uint64_t haltonIndex = photonIndex;
+		int haltonDim = 0;
+
+		// Choose light to shoot photon from
+		Float lightPdf;
+		Float lightSample = RadicalInverse(haltonDim++, haltonIndex);
+		int lightNum = powerDistrib->SampleDiscrete(lightSample, &lightPdf);
+		const std::shared_ptr<Light> &light = scene.lights[lightNum];
+
+		// Compute sample values for photon ray leaving light source
+		Point2f uLight0(RadicalInverse(haltonDim, haltonIndex),
+			RadicalInverse(haltonDim + 1, haltonIndex));
+		Point2f uLight1(RadicalInverse(haltonDim + 2, haltonIndex),
+			RadicalInverse(haltonDim + 3, haltonIndex));
+		// Camera not available here, add Camera to the Scene object?
+		Float uLightTime = 0; //Lerp(RadicalInverse(haltonDim + 4, haltonIndex), camera->shutterOpen, camera->shutterClose);
+		haltonDim += 5;
+
+		// Generate _photonRay_ from light source and initialize _beta_
+		RayDifferential photonRay;
+		Normal3f nLight;
+		Float pdfPos, pdfDir;
+		Spectrum Le =
+			light->Sample_Le(uLight0, uLight1, uLightTime, &photonRay,
+				&nLight, &pdfPos, &pdfDir);
+		if (pdfPos == 0 || pdfDir == 0 || Le.IsBlack()) return;
+		Spectrum beta = (AbsDot(nLight, photonRay.d) * Le) /
+			(lightPdf * pdfPos * pdfDir);
+		if (beta.IsBlack()) return;
+		// TODO: is this correct? can we assume all beta's are the same?
+		Float fbeta = beta.MaxComponentValue();
+
+		// Follow photon through scene and record intersection
+		SurfaceInteraction isect;
+		if (scene.Intersect(photonRay, &isect)) {
+			// Add photon to kd-tree if intersection found and is difuse
+			// TODO: difuse
+
+			// First, compute integer voxel coordinates for the given point |p|
+			// with respect to the overall voxel grid.
+			Vector3f offset = scene.WorldBound().Offset(isect.p);  // offset in [0,1].
+			Point3i pi;
+			for (int i = 0; i < 3; ++i)
+				// The clamp should almost never be necessary, but is there to be
+				// robust to computed intersection points being slightly outside
+				// the scene bounds due to floating-point roundoff error.
+				pi[i] = Clamp(int(offset[i] * nVoxels[i]), 0, nVoxels[i] - 1);
+
+			// Pack the 3D integer voxel coordinates into a single 64-bit value.
+			uint64_t packedPos = (uint64_t(pi[0]) << 40) | (uint64_t(pi[1]) << 20) | pi[2];
+			CHECK_NE(packedPos, invalidPackedPos);
+
+			// Compute a hash value from the packed voxel coordinates.  We could
+			// just take packedPos mod the hash table size, but since packedPos
+			// isn't necessarily well distributed on its own, it's worthwhile to do
+			// a little work to make sure that its bits values are individually
+			// fairly random. For details of and motivation for the following, see:
+			// http://zimbry.blogspot.ch/2011/09/better-bit-mixing-improving-on.html
+			uint64_t hash = packedPos;
+			hash ^= (hash >> 31);
+			hash *= 0x7fb5d329728ea185;
+			hash ^= (hash >> 27);
+			hash *= 0x81dadef4bc2dd44d;
+			hash ^= (hash >> 33);
+			hash %= hashTableSize;
+			CHECK_GE(hash, 0);
+
+			// Now, see if the hash table already has an entry for the voxel. We'll
+			// use quadratic probing when the hash table entry is already used for
+			// another value; step stores the square root of the probe step.
+			int step = 1;
+			int nProbes = 0;
+			while (true) {
+				++nProbes;
+				HashEntry &entry = hashTable[hash];
+				// Does the hash table entry at offset |hash| match the current point?
+				uint64_t entryPackedPos = entry.packedPos.load(std::memory_order_acquire);
+				uint64_t invalid = invalidPackedPos;
+				if (entryPackedPos == packedPos || entry.packedPos.compare_exchange_weak(invalid, packedPos)) {
+					// Hash entry is already associated to the packedPos OR hashentrypos is invalid
+					// and we try to claim this hashentry for this packedPos
+					std::vector<std::atomic<Float>>* lightContrib = entry.lightContrib.get();
+					ReportValue(nProbesPerLookup, nProbes);
+					//TODO: make this threadsafe!?
+					(*lightContrib)[lightNum].store(fbeta + (*lightContrib)[lightNum].load());
+					//LOG(INFO) << "Photon: " << photonIndex << " from lightnr: " << lightNum << " contributed to hash " << hash << " with beta " << fbeta;
+					break;
+				}
+				else {
 					// The hash table entry we're checking has already been
 					// allocated for another voxel. Advance to the next entry with
 					// quadratic probing.
