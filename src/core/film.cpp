@@ -37,6 +37,8 @@
 #include "imageio.h"
 #include "stats.h"
 
+#include <ctime>
+
 namespace pbrt {
 
 STAT_MEMORY_COUNTER("Memory/Film pixels", filmPixelMemory);
@@ -221,6 +223,12 @@ Film *CreateFilm(const ParamSet &params, std::unique_ptr<Filter> filter) {
                 PbrtOptions.imageFile.c_str(), paramsFilename.c_str());
     } else
         filename = params.FindOneString("filename", "pbrt.exr");
+	std::stringstream ts;
+	ts << "_T" << std::time(0);
+	size_t lastindex = filename.find_last_of(".");
+	std::string noext = filename.substr(0, lastindex);
+	std::string ext = filename.substr(lastindex, filename.length());
+	filename = noext + ts.str() + ext;
 
     int xres = params.FindOneInt("xresolution", 1280);
     int yres = params.FindOneInt("yresolution", 720);
