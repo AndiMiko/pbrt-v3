@@ -40,7 +40,6 @@
 #include "stats.h"
 #include "integrator.h"
 #include <numeric>
-#include <nanoflann.hpp>
 
 using namespace nanoflann;
 
@@ -548,16 +547,16 @@ void PhotonBasedVoxelLightDistribution::shootPhotons(const Scene &scene) {
 
 }
 
-PhotonBasedKdTreeLightDistribution::PhotonBasedKdTreeLightDistribution(const Scene &scene) : scene(scene) {
+PhotonBasedKdTreeLightDistribution::PhotonBasedKdTreeLightDistribution(const Scene &scene) : 
+		scene(scene), 
+		kdtree(3 /*dim*/, cloud, KDTreeSingleIndexAdaptorParams(10 /* max leaf */)) 
+{
 	ProfilePhase _(Prof::LightDistribCreation);
 	powerDistrib = ComputeLightPowerDistribution(scene);
 
 	cloud.pts.resize(NUM_PHOTONS); // number of photons
 	shootPhotons(scene);
-	my_kd_tree_t index(3 /*dim*/, cloud, KDTreeSingleIndexAdaptorParams(10 /* max leaf */));
-	
-	index.buildIndex();
-
+	kdtree.buildIndex();
 }
 
 void PhotonBasedKdTreeLightDistribution::shootPhotons(const Scene &scene) {
@@ -605,15 +604,54 @@ void PhotonBasedKdTreeLightDistribution::shootPhotons(const Scene &scene) {
 			cloud.pts[photonIndex].y = isect.p.y;
 			cloud.pts[photonIndex].z = isect.p.z;
 			cloud.pts[photonIndex].beta = fbeta;
+			cloud.pts[photonIndex].lightNum = lightNum;
 		} else {
 			cloud.pts[photonIndex].x = FLT_MAX;
 			cloud.pts[photonIndex].y = FLT_MAX;
 			cloud.pts[photonIndex].z = FLT_MAX;
 			cloud.pts[photonIndex].beta = 0.0;
+			cloud.pts[photonIndex].lightNum = -1;
 		}
 
 	}, NUM_PHOTONS, 4096);
 
+}
+
+const Distribution1D *PhotonBasedKdTreeLightDistribution::Lookup(const Point3f &p) const {
+	ProfilePhase _(Prof::LightDistribLookup);
+	++nLookups;
+
+	const Float query_pt[3] = { p.x, p.y, p.z };
+
+	size_t num_results = 50;
+	std::vector<size_t> ret_index(num_results);
+	std::vector<Float> out_dist_sqr(num_results);
+
+	num_results = kdtree.knnSearch(&query_pt[0], num_results, &ret_index[0], &out_dist_sqr[0]);
+	ret_index.resize(num_results);
+	out_dist_sqr.resize(num_results);
+
+	std::vector<Float> lightContrib(scene.lights.size(), Float(0));
+	for (size_t i = 0; i < num_results; i++) {
+		int lightNum = cloud.pts[ret_index[i]].lightNum;
+		float beta = cloud.pts[ret_index[i]].beta;
+		lightContrib[lightNum] += beta;	
+	}
+
+	// We don't want to leave any lights with a zero probability; it's
+	// possible that a light contributes to points in the voxel even though
+	// we didn't find such a point when sampling above.  Therefore, compute
+	// a minimum (small) weight and ensure that all lights are given at
+	// least the corresponding probability.
+	Float sumContrib =
+		std::accumulate(lightContrib.begin(), lightContrib.end(), Float(0));
+	Float avgContrib = sumContrib / lightContrib.size();
+	Float minContrib = (avgContrib > 0) ? .001 * avgContrib : 1;
+	for (size_t j = 0; j < lightContrib.size(); ++j) {
+		lightContrib[j] = std::max(lightContrib[j], minContrib);
+	}
+
+	return new Distribution1D(&lightContrib[0], int(lightContrib.size()));
 }
 
 

@@ -41,6 +41,9 @@
 #include <mutex>
 #include <unordered_map>
 #include <vector>
+#include <nanoflann.hpp>
+
+using namespace nanoflann;
 
 namespace pbrt {
 
@@ -160,6 +163,7 @@ public:
 		{
 			T  x, y, z;
 			float beta;
+			int lightNum;
 		};
 
 		std::vector<Photon> pts;
