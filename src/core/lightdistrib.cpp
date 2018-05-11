@@ -650,8 +650,9 @@ const Distribution1D *PhotonBasedKdTreeLightDistribution::Lookup(const Point3f &
 	for (size_t j = 0; j < lightContrib.size(); ++j) {
 		lightContrib[j] = std::max(lightContrib[j], minContrib);
 	}
-
-	return new Distribution1D(&lightContrib[0], int(lightContrib.size()));
+	Distribution1D* distr = new Distribution1D(&lightContrib[0], int(lightContrib.size()));
+	//LOG_EVERY_N(INFO, 5000) << "Initialized light distribution in point p= " << p << " " << distr->ToString();
+	return distr;
 }
 
 
