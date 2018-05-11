@@ -226,7 +226,6 @@ std::unique_ptr<Distribution1D> ComputeLightPowerDistribution(
 
 // SamplerIntegrator Method Definitions
 void SamplerIntegrator::Render(const Scene &scene) {
-    Preprocess(scene, *sampler);
     // Render image tiles in parallel
 
     // Compute number of tiles, _nTiles_, to use for parallel rendering
@@ -235,7 +234,9 @@ void SamplerIntegrator::Render(const Scene &scene) {
     const int tileSize = 16;
     Point2i nTiles((sampleExtent.x + tileSize - 1) / tileSize,
                    (sampleExtent.y + tileSize - 1) / tileSize);
-    ProgressReporter reporter(nTiles.x * nTiles.y, "Rendering");
+	ProgressReporter reporter(nTiles.x * nTiles.y + 25, "Rendering");
+	Preprocess(scene, *sampler);
+	reporter.Update(25);
     {
         ParallelFor2D([&](Point2i tile) {
             // Render section of image corresponding to _tile_
