@@ -43,7 +43,8 @@
 
 using namespace nanoflann;
 
-#define NUM_PHOTONS 4194304
+#define NUM_PHOTONS 522304
+#define MIN_CONTRIB_FACTOR .1
 
 namespace pbrt {
 
@@ -646,7 +647,7 @@ const Distribution1D *PhotonBasedKdTreeLightDistribution::Lookup(const Point3f &
 	Float sumContrib =
 		std::accumulate(lightContrib.begin(), lightContrib.end(), Float(0));
 	Float avgContrib = sumContrib / lightContrib.size();
-	Float minContrib = (avgContrib > 0) ? .001 * avgContrib : 1;
+	Float minContrib = (avgContrib > 0) ? MIN_CONTRIB_FACTOR * avgContrib : 1;
 	for (size_t j = 0; j < lightContrib.size(); ++j) {
 		lightContrib[j] = std::max(lightContrib[j], minContrib);
 	}
