@@ -42,6 +42,7 @@
 #include "pbrt.h"
 #include "integrator.h"
 #include "lightdistrib.h"
+#include "paramset.h"
 
 namespace pbrt {
 
@@ -51,8 +52,8 @@ class PathIntegrator : public SamplerIntegrator {
     // PathIntegrator Public Methods
     PathIntegrator(int maxDepth, std::shared_ptr<const Camera> camera,
                    std::shared_ptr<Sampler> sampler,
-                   const Bounds2i &pixelBounds, Float rrThreshold = 1,
-                   const std::string &lightSampleStrategy = "spatial");
+                   const Bounds2i &pixelBounds, const ParamSet &params = ParamSet(),
+					Float rrThreshold = 1);
 
     void Preprocess(const Scene &scene, Sampler &sampler);
     Spectrum Li(const RayDifferential &ray, const Scene &scene,
@@ -64,6 +65,7 @@ class PathIntegrator : public SamplerIntegrator {
     const Float rrThreshold;
     const std::string lightSampleStrategy;
     std::unique_ptr<LightDistribution> lightDistribution;
+    const ParamSet params;
 };
 
 PathIntegrator *CreatePathIntegrator(const ParamSet &params,

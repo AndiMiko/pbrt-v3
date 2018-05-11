@@ -60,7 +60,7 @@ class LightDistribution {
 };
 
 std::unique_ptr<LightDistribution> CreateLightSampleDistribution(
-    const std::string &name, const Scene &scene);
+	const ParamSet &params, const Scene &scene);
 
 // The simplest possible implementation of LightDistribution: this returns
 // a uniform distribution over all light sources, ignoring the provided

@@ -49,7 +49,7 @@ STAT_COUNTER("Integrator/Surface interactions", surfaceInteractions);
 // VolPathIntegrator Method Definitions
 void VolPathIntegrator::Preprocess(const Scene &scene, Sampler &sampler) {
     lightDistribution =
-        CreateLightSampleDistribution(lightSampleStrategy, scene);
+        CreateLightSampleDistribution(params, scene);
 }
 
 Spectrum VolPathIntegrator::Li(const RayDifferential &r, const Scene &scene,
@@ -210,7 +210,7 @@ VolPathIntegrator *CreateVolPathIntegrator(
     std::string lightStrategy =
         params.FindOneString("lightsamplestrategy", "spatial");
     return new VolPathIntegrator(maxDepth, camera, sampler, pixelBounds,
-                                 rrThreshold, lightStrategy);
+								params, rrThreshold);
 }
 
 }  // namespace pbrt

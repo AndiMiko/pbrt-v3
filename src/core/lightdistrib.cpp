@@ -39,6 +39,7 @@
 #include "scene.h"
 #include "stats.h"
 #include "integrator.h"
+#include "paramset.h"
 #include <numeric>
 
 using namespace nanoflann;
@@ -51,7 +52,10 @@ namespace pbrt {
 LightDistribution::~LightDistribution() {}
 
 std::unique_ptr<LightDistribution> CreateLightSampleDistribution(
-    const std::string &name, const Scene &scene) {
+	const ParamSet &params, const Scene &scene) {
+	std::string name = params.FindOneString("lightsamplestrategy", "spatial");
+	int photons = params.FindOneInt("photoncount", 100000);
+
     if (name == "uniform" || scene.lights.size() == 1)
         return std::unique_ptr<LightDistribution>{
             new UniformLightDistribution(scene)};

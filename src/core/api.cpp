@@ -1708,7 +1708,7 @@ Integrator *RenderOptions::MakeIntegrator() const {
             "\"mlt\".", IntegratorName.c_str());
     }
 
-    IntegratorParams.ReportUnused();
+    //IntegratorParams.ReportUnused();
     // Warn if no light sources are defined
     if (lights.empty())
         Warning(

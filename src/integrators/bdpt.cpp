@@ -301,7 +301,7 @@ inline int BufferIndex(int s, int t) {
 
 void BDPTIntegrator::Render(const Scene &scene) {
     std::unique_ptr<LightDistribution> lightDistribution =
-        CreateLightSampleDistribution(lightSampleStrategy, scene);
+        CreateLightSampleDistribution(params, scene);
 
     // Compute a reverse mapping from light pointers to offsets into the
     // scene lights vector (and, equivalently, offsets into
@@ -565,7 +565,7 @@ BDPTIntegrator *CreateBDPTIntegrator(const ParamSet &params,
     std::string lightStrategy = params.FindOneString("lightsamplestrategy",
                                                      "power");
     return new BDPTIntegrator(sampler, camera, maxDepth, visualizeStrategies,
-                              visualizeWeights, pixelBounds, lightStrategy);
+                              visualizeWeights, pixelBounds, params);
 }
 
 }  // namespace pbrt

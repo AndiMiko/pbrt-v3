@@ -48,6 +48,7 @@
 #include "reflection.h"
 #include "sampling.h"
 #include "scene.h"
+#include "paramset.h"
 
 namespace pbrt {
 
@@ -131,14 +132,14 @@ class BDPTIntegrator : public Integrator {
                    std::shared_ptr<const Camera> camera, int maxDepth,
                    bool visualizeStrategies, bool visualizeWeights,
                    const Bounds2i &pixelBounds,
-                   const std::string &lightSampleStrategy = "power")
+				   const ParamSet &params = ParamSet())
         : sampler(sampler),
           camera(camera),
           maxDepth(maxDepth),
           visualizeStrategies(visualizeStrategies),
           visualizeWeights(visualizeWeights),
           pixelBounds(pixelBounds),
-          lightSampleStrategy(lightSampleStrategy) {}
+          params(params) {}
     void Render(const Scene &scene);
 
   private:
@@ -150,6 +151,7 @@ class BDPTIntegrator : public Integrator {
     const bool visualizeWeights;
     const Bounds2i pixelBounds;
     const std::string lightSampleStrategy;
+	const ParamSet params;
 };
 
 struct Vertex {
