@@ -148,6 +148,7 @@ private:
 };
 
 class PhotonBasedKdTreeLightDistribution : public LightDistribution {
+		
 public:
 	PhotonBasedKdTreeLightDistribution(const Scene &scene);
 	const Distribution1D *Lookup(const Point3f &p) const;
@@ -155,12 +156,13 @@ public:
 	template <typename T>
 	struct PhotonCloud
 	{
-		struct Point
+		struct Photon
 		{
 			T  x, y, z;
+			float beta;
 		};
 
-		std::vector<Point> pts;
+		std::vector<Photon> pts;
 
 		// Must return the number of data points
 		inline size_t kdtree_get_point_count() const { return pts.size(); }
@@ -180,6 +182,15 @@ public:
 private:
 	const Scene &scene;
 	std::unique_ptr<Distribution1D> powerDistrib;
+
+	typedef KDTreeSingleIndexAdaptor<
+		L2_Simple_Adaptor<Float, PhotonCloud<Float> >,
+		PhotonCloud<Float>,
+		3 /* dim */
+	> my_kd_tree_t;
+
+	PhotonCloud<Float> cloud;
+	my_kd_tree_t kdtree;
 
 	void shootPhotons(const Scene &scene);
 
