@@ -57,6 +57,8 @@
 #include <utility>
 #include <vector>
 
+#include <fstream>
+
 namespace pbrt {
 
 Loc *parserLoc;
@@ -1070,8 +1072,13 @@ static void parse(std::unique_ptr<Tokenizer> t) {
 }
 
 void pbrtParseFile(std::string filename) {
-    if (filename != "-") SetSearchDirectory(DirectoryContaining(filename));
-
+	if (filename != "-") {
+		SetSearchDirectory(DirectoryContaining(filename));
+		std::ifstream file(filename);
+		pbrt::infoFile << "\n+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n";
+		pbrt::infoFile << file.rdbuf();
+		pbrt::infoFile << "+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n\n";
+	}
     auto tokError = [](const char *msg) { Error("%s", msg); };
     std::unique_ptr<Tokenizer> t =
         Tokenizer::CreateFromFile(filename, tokError);

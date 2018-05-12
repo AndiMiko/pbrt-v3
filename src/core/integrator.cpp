@@ -235,7 +235,9 @@ void SamplerIntegrator::Render(const Scene &scene) {
     Point2i nTiles((sampleExtent.x + tileSize - 1) / tileSize,
                    (sampleExtent.y + tileSize - 1) / tileSize);
 	ProgressReporter reporter(nTiles.x * nTiles.y + 25, "Rendering");
+	pbrt::infoFile << "Started preprocess after " << (reporter.ElapsedMS() / 1000.0f) << "s\n";
 	Preprocess(scene, *sampler);
+	pbrt::infoFile << "Preprocess finished after " << (reporter.ElapsedMS() / 1000.0f) << "s\n";
 	reporter.Update(25);
     {
         ParallelFor2D([&](Point2i tile) {
@@ -331,6 +333,7 @@ void SamplerIntegrator::Render(const Scene &scene) {
             camera->film->MergeFilmTile(std::move(filmTile));
             reporter.Update();
         }, nTiles);
+		pbrt::infoFile << "Rendering finished after " << (reporter.ElapsedMS() / 1000.0f) << "s\n";
         reporter.Done();
     }
     LOG(INFO) << "Rendering finished";

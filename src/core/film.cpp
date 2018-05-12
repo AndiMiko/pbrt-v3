@@ -38,6 +38,7 @@
 #include "stats.h"
 
 #include <ctime>
+#include <fstream>
 
 namespace pbrt {
 
@@ -209,6 +210,16 @@ void Film::WriteImage(Float splatScale) {
     LOG(INFO) << "Writing image " << filename << " with bounds " <<
         croppedPixelBounds;
     pbrt::WriteImage(filename, &rgb[0], croppedPixelBounds, fullResolution);
+
+	// Write renderinfo file
+	size_t lastindex = filename.find_last_of(".");
+	std::string noext = filename.substr(0, lastindex);
+
+	std::ofstream infoFile;
+	infoFile.open(noext + ".info");
+	infoFile << "PBRT Renderinfo file\n";
+	infoFile << pbrt::infoFile.str();
+	infoFile.close();
 }
 
 Film *CreateFilm(const ParamSet &params, std::unique_ptr<Filter> filter) {
@@ -222,7 +233,7 @@ Film *CreateFilm(const ParamSet &params, std::unique_ptr<Filter> filter) {
                 "filename provided in scene description file, \"%s\".",
                 PbrtOptions.imageFile.c_str(), paramsFilename.c_str());
     } else
-        filename = params.FindOneString("filename", "pbrt.exr");
+    filename = params.FindOneString("filename", "pbrt.exr");
 	std::stringstream ts;
 	ts << "_T" << std::time(0);
 	size_t lastindex = filename.find_last_of(".");

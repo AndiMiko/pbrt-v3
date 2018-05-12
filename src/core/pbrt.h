@@ -180,6 +180,7 @@ struct Options {
     Float cropWindow[2][2];
 };
 
+extern std::stringstream infoFile;
 extern Options PbrtOptions;
 class TextureParams;
 
@@ -208,6 +209,7 @@ static PBRT_CONSTEXPR Float Sqrt2 = 1.41421356237309504880;
 #if defined(PBRT_IS_MSVC)
 #define alloca _alloca
 #endif
+
 
 // Global Inline Functions
 inline uint32_t FloatToBits(float f) {
