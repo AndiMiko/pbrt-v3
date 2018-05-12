@@ -822,6 +822,7 @@ std::shared_ptr<Sampler> MakeSampler(const std::string &name,
                                      const ParamSet &paramSet,
                                      const Film *film) {
     Sampler *sampler = nullptr;
+	pbrt::PbrtOptions.filenameInfo.pixelSamples = paramSet.FindOneInt("pixelsamples", 16);
     if (name == "lowdiscrepancy" || name == "02sequence")
         sampler = CreateZeroTwoSequenceSampler(paramSet);
     else if (name == "maxmindist")

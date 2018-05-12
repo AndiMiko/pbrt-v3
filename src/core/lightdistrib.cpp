@@ -51,7 +51,7 @@ LightDistribution::~LightDistribution() {}
 std::unique_ptr<LightDistribution> CreateLightSampleDistribution(
 	const ParamSet &params, const Scene &scene) {
 	std::string name = params.FindOneString("lightsamplestrategy", "spatial");
-	
+	pbrt::PbrtOptions.filenameInfo.lightSampleStrategy = name;
 
     if (name == "uniform" || scene.lights.size() == 1)
         return std::unique_ptr<LightDistribution>{

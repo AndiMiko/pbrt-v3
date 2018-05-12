@@ -47,7 +47,7 @@ STAT_MEMORY_COUNTER("Memory/Film pixels", filmPixelMemory);
 // Film Method Definitions
 Film::Film(const Point2i &resolution, const Bounds2f &cropWindow,
            std::unique_ptr<Filter> filt, Float diagonal,
-           const std::string &filename, Float scale, Float maxSampleLuminance)
+           std::string &filename, Float scale, Float maxSampleLuminance)
     : fullResolution(resolution),
       diagonal(diagonal * .001),
       filter(std::move(filt)),
@@ -206,17 +206,36 @@ void Film::WriteImage(Float splatScale) {
         ++offset;
     }
 
+	// add important rendersettings to filename
+	std::stringstream filenameInfo;
+	if (pbrt::PbrtOptions.filenameInfo.lightSampleStrategy == "uniform") {
+		filenameInfo << "_uni";
+	} else if(pbrt::PbrtOptions.filenameInfo.lightSampleStrategy == "power") {
+		filenameInfo << "_pow";
+	} else if (pbrt::PbrtOptions.filenameInfo.lightSampleStrategy == "spatial") {
+		filenameInfo << "_spat";
+	} else if (pbrt::PbrtOptions.filenameInfo.lightSampleStrategy == "photonvoxel") {
+		filenameInfo << "_pvox";
+	} else if (pbrt::PbrtOptions.filenameInfo.lightSampleStrategy == "photontree") {
+		filenameInfo << "_ptree";
+	} else {
+		filenameInfo << "_ls-N";
+	}
+	filenameInfo << "_ps" << pbrt::PbrtOptions.filenameInfo.pixelSamples;
+	filenameInfo << "_t" << (std::time(0) - 1526000000);
+	size_t lastindex = filename.find_last_of(".");
+	std::string noext = filename.substr(0, lastindex);
+	std::string ext = filename.substr(lastindex, filename.length());
+	filename = noext + filenameInfo.str() + ext;
+
     // Write RGB image
     LOG(INFO) << "Writing image " << filename << " with bounds " <<
         croppedPixelBounds;
     pbrt::WriteImage(filename, &rgb[0], croppedPixelBounds, fullResolution);
 
 	// Write renderinfo file
-	size_t lastindex = filename.find_last_of(".");
-	std::string noext = filename.substr(0, lastindex);
-
 	std::ofstream infoFile;
-	infoFile.open(noext + ".info");
+	infoFile.open(noext + filenameInfo.str() + ".info");
 	infoFile << "PBRT Renderinfo file\n";
 	infoFile << pbrt::infoFile.str();
 	infoFile.close();
@@ -234,12 +253,6 @@ Film *CreateFilm(const ParamSet &params, std::unique_ptr<Filter> filter) {
                 PbrtOptions.imageFile.c_str(), paramsFilename.c_str());
     } else
     filename = params.FindOneString("filename", "pbrt.exr");
-	std::stringstream ts;
-	ts << "_T" << std::time(0);
-	size_t lastindex = filename.find_last_of(".");
-	std::string noext = filename.substr(0, lastindex);
-	std::string ext = filename.substr(lastindex, filename.length());
-	filename = noext + ts.str() + ext;
 
     int xres = params.FindOneInt("xresolution", 1280);
     int yres = params.FindOneInt("yresolution", 720);

@@ -60,7 +60,7 @@ class Film {
     // Film Public Methods
     Film(const Point2i &resolution, const Bounds2f &cropWindow,
          std::unique_ptr<Filter> filter, Float diagonal,
-         const std::string &filename, Float scale,
+         std::string &filename, Float scale,
          Float maxSampleLuminance = Infinity);
     Bounds2i GetSampleBounds() const;
     Bounds2f GetPhysicalExtent() const;
@@ -75,7 +75,7 @@ class Film {
     const Point2i fullResolution;
     const Float diagonal;
     std::unique_ptr<Filter> filter;
-    const std::string filename;
+    std::string filename;
     Bounds2i croppedPixelBounds;
 
   private:
