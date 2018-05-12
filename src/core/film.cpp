@@ -219,7 +219,7 @@ void Film::WriteImage(Float splatScale) {
 	} else if (pbrt::PbrtOptions.filenameInfo.lightSampleStrategy == "photontree") {
 		filenameInfo << "_ptree";
 	} else {
-		filenameInfo << "_ls-N";
+		filenameInfo << "_UNKN";
 	}
 	filenameInfo << "_ps" << pbrt::PbrtOptions.filenameInfo.pixelSamples;
 	filenameInfo << "_t" << (std::time(0) - 1526000000);
