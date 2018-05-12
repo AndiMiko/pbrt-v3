@@ -44,9 +44,6 @@
 
 using namespace nanoflann;
 
-#define NUM_PHOTONS 522304
-#define MIN_CONTRIB_FACTOR .1
-
 namespace pbrt {
 
 LightDistribution::~LightDistribution() {}
@@ -54,7 +51,7 @@ LightDistribution::~LightDistribution() {}
 std::unique_ptr<LightDistribution> CreateLightSampleDistribution(
 	const ParamSet &params, const Scene &scene) {
 	std::string name = params.FindOneString("lightsamplestrategy", "spatial");
-	int photons = params.FindOneInt("photoncount", 100000);
+	
 
     if (name == "uniform" || scene.lights.size() == 1)
         return std::unique_ptr<LightDistribution>{
@@ -67,10 +64,10 @@ std::unique_ptr<LightDistribution> CreateLightSampleDistribution(
             new SpatialLightDistribution(scene)};
 	else if (name == "photonvoxel")
 		return std::unique_ptr<LightDistribution>{
-			new PhotonBasedVoxelLightDistribution(scene)};
+			new PhotonBasedVoxelLightDistribution(params, scene)};
 	else if (name == "photontree")
 		return std::unique_ptr<LightDistribution>{
-			new PhotonBasedKdTreeLightDistribution(scene)};
+			new PhotonBasedKdTreeLightDistribution(params, scene)};
     else {
         Error(
             "Light sample distribution type \"%s\" unknown. Using \"spatial\".",
@@ -314,10 +311,14 @@ SpatialLightDistribution::ComputeDistribution(Point3i pi) const {
     return new Distribution1D(&lightContrib[0], int(lightContrib.size()));
 }
 
-PhotonBasedVoxelLightDistribution::PhotonBasedVoxelLightDistribution(const Scene &scene, int maxVoxels) : scene(scene) {
+PhotonBasedVoxelLightDistribution::PhotonBasedVoxelLightDistribution(const ParamSet &params, const Scene &scene) : 
+	scene(scene), 
+	photonCount(params.FindOneInt("photonCount", 100000)), 
+	maxVoxels(params.FindOneInt("maxVoxels", 64)) {
 	ProfilePhase _(Prof::LightDistribCreation);
+
 	powerDistrib = ComputeLightPowerDistribution(scene);
-	initVoxelHashTable(maxVoxels);
+	initVoxelHashTable();
 	shootPhotons(scene);
 }
 
@@ -386,7 +387,7 @@ const Distribution1D *PhotonBasedVoxelLightDistribution::Lookup(const Point3f &p
 	}
 }
 
-void PhotonBasedVoxelLightDistribution::initVoxelHashTable(int maxVoxels) {
+void PhotonBasedVoxelLightDistribution::initVoxelHashTable() {
 	// Compute the number of voxels so that the widest scene bounding box
 	// dimension has maxVoxels voxels and the other dimensions have a number
 	// of voxels so that voxels are roughly cube shaped.
@@ -520,8 +521,7 @@ void PhotonBasedVoxelLightDistribution::shootPhotons(const Scene &scene) {
 
 		}
 		//arena.Reset();
-	}, NUM_PHOTONS, 4096);
-	//}, (int64_t) pow(2, 20), 65536);
+	}, photonCount, 4096);
 
 	for (int i = 0; i < hashTableSize; ++i) {
 		std::vector<std::atomic<Float>> *lightContrib = hashTable[i].lightContrib.get();
@@ -552,14 +552,16 @@ void PhotonBasedVoxelLightDistribution::shootPhotons(const Scene &scene) {
 
 }
 
-PhotonBasedKdTreeLightDistribution::PhotonBasedKdTreeLightDistribution(const Scene &scene) : 
+PhotonBasedKdTreeLightDistribution::PhotonBasedKdTreeLightDistribution(const ParamSet &params, const Scene &scene) :
 		scene(scene), 
-		kdtree(3 /*dim*/, cloud, KDTreeSingleIndexAdaptorParams(10 /* max leaf */)) 
+		kdtree(3 /*dim*/, cloud, KDTreeSingleIndexAdaptorParams(10 /* max leaf */)),
+		photonCount(params.FindOneInt("photonCount", 100000)),
+		minContributionScale(params.FindOneFloat("minContributionScale", 0.001))
 {
 	ProfilePhase _(Prof::LightDistribCreation);
 	powerDistrib = ComputeLightPowerDistribution(scene);
 
-	cloud.pts.resize(NUM_PHOTONS); // number of photons
+	cloud.pts.resize(photonCount);
 	shootPhotons(scene);
 	kdtree.buildIndex();
 }
@@ -618,7 +620,7 @@ void PhotonBasedKdTreeLightDistribution::shootPhotons(const Scene &scene) {
 			cloud.pts[photonIndex].lightNum = -1;
 		}
 
-	}, NUM_PHOTONS, 4096);
+	}, photonCount, 4096);
 
 }
 
@@ -651,7 +653,7 @@ const Distribution1D *PhotonBasedKdTreeLightDistribution::Lookup(const Point3f &
 	Float sumContrib =
 		std::accumulate(lightContrib.begin(), lightContrib.end(), Float(0));
 	Float avgContrib = sumContrib / lightContrib.size();
-	Float minContrib = (avgContrib > 0) ? MIN_CONTRIB_FACTOR * avgContrib : 1;
+	Float minContrib = (avgContrib > 0) ? minContributionScale * avgContrib : 1;
 	for (size_t j = 0; j < lightContrib.size(); ++j) {
 		lightContrib[j] = std::max(lightContrib[j], minContrib);
 	}
