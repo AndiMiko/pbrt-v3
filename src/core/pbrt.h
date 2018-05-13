@@ -182,6 +182,7 @@ struct Options {
 		std::string lightSampleStrategy;
 		int photonCount;
 		float minContributionScale;
+		std::string infoFile;
 	};
 	FilenameInfo filenameInfo;
 

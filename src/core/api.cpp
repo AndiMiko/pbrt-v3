@@ -1643,6 +1643,10 @@ void pbrtWorldEnd() {
         if (!PbrtOptions.quiet) {
             PrintStats(stdout);
             ReportProfilerResults(stdout);
+			FILE * pFile = fopen(pbrt::PbrtOptions.filenameInfo.infoFile.c_str(), "a+");
+			PrintStats(pFile);
+			ReportProfilerResults(pFile);
+			fclose(pFile);
             ClearStats();
             ClearProfiler();
         }

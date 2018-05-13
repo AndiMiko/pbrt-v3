@@ -237,8 +237,10 @@ void Film::WriteImage(Float splatScale) {
 	std::ofstream infoFile;
 	infoFile.open(noext + filenameInfo.str() + ".info");
 	infoFile << "PBRT Renderinfo file\n";
-	infoFile << pbrt::infoFile.str();
+	infoFile << pbrt::infoFile.str() << "\n\n";
 	infoFile.close();
+
+	pbrt::PbrtOptions.filenameInfo.infoFile = noext + filenameInfo.str() + ".info";
 }
 
 Film *CreateFilm(const ParamSet &params, std::unique_ptr<Filter> filter) {
