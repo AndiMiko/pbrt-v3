@@ -190,6 +190,9 @@ private:
 	std::unique_ptr<Distribution1D> powerDistrib;
 	const int photonCount;
 	const float minContributionScale;
+	const float photonRadius;
+	const float nearestNeighbours;
+	const bool knn;
 
 	typedef KDTreeSingleIndexAdaptor<
 		L2_Simple_Adaptor<Float, PhotonCloud<Float> >,

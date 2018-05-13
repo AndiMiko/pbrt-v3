@@ -556,7 +556,10 @@ PhotonBasedKdTreeLightDistribution::PhotonBasedKdTreeLightDistribution(const Par
 		scene(scene), 
 		kdtree(3 /*dim*/, cloud, KDTreeSingleIndexAdaptorParams(10 /* max leaf */)),
 		photonCount(params.FindOneInt("photonCount", 100000)),
-		minContributionScale(params.FindOneFloat("minContributionScale", 0.001))
+		minContributionScale(params.FindOneFloat("minContributionScale", 0.001)),
+		nearestNeighbours(params.FindOneInt("nearestNeighbours", 50)),
+		photonRadius(params.FindOneFloat("photonRadius", 0.1)),
+		knn(params.FindOneBool("knn", true))
 {
 	ProfilePhase _(Prof::LightDistribCreation);
 	powerDistrib = ComputeLightPowerDistribution(scene);
@@ -629,20 +632,35 @@ const Distribution1D *PhotonBasedKdTreeLightDistribution::Lookup(const Point3f &
 	++nLookups;
 
 	const Float query_pt[3] = { p.x, p.y, p.z };
-
-	size_t num_results = 50;
-	std::vector<size_t> ret_index(num_results);
-	std::vector<Float> out_dist_sqr(num_results);
-
-	num_results = kdtree.knnSearch(&query_pt[0], num_results, &ret_index[0], &out_dist_sqr[0]);
-	ret_index.resize(num_results);
-	out_dist_sqr.resize(num_results);
-
 	std::vector<Float> lightContrib(scene.lights.size(), Float(0));
-	for (size_t i = 0; i < num_results; i++) {
-		int lightNum = cloud.pts[ret_index[i]].lightNum;
-		float beta = cloud.pts[ret_index[i]].beta;
-		lightContrib[lightNum] += beta;	
+
+	if (knn) {
+		// perform a k-nearest-neighbour search to find #nearestNeighbours
+		size_t num_results = nearestNeighbours;
+		std::vector<size_t> ret_index(num_results);
+		std::vector<Float> out_dist_sqr(num_results);
+
+		num_results = kdtree.knnSearch(&query_pt[0], num_results, &ret_index[0], &out_dist_sqr[0]);
+		ret_index.resize(num_results);
+		out_dist_sqr.resize(num_results);
+
+		for (size_t i = 0; i < num_results; i++) {
+			int lightNum = cloud.pts[ret_index[i]].lightNum;
+			float beta = cloud.pts[ret_index[i]].beta;
+			lightContrib[lightNum] += beta;
+		}
+	} else {
+		// perform a search within searchradius photonRadius
+		std::vector<std::pair<size_t, Float>> ret_matches;
+		nanoflann::SearchParams params;
+
+		const size_t nMatches = kdtree.radiusSearch(&query_pt[0], photonRadius, ret_matches, params);
+		LOG_EVERY_N(INFO, 5000) << "radiusSearch(): radius=" << photonRadius << " -> " << nMatches << " matches";
+		for (size_t i = 0; i < nMatches; i++) {
+			int lightNum = cloud.pts[ret_matches[i].first].lightNum;
+			float beta = cloud.pts[ret_matches[i].first].beta;
+			lightContrib[lightNum] += beta;
+		}
 	}
 
 	// We don't want to leave any lights with a zero probability; it's
