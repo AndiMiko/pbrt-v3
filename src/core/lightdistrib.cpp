@@ -562,6 +562,14 @@ PhotonBasedKdTreeLightDistribution::PhotonBasedKdTreeLightDistribution(const Par
 		knn(params.FindOneBool("knn", true))
 {
 	ProfilePhase _(Prof::LightDistribCreation);
+	pbrt::PbrtOptions.filenameInfo.photonCount = &photonCount;
+	pbrt::PbrtOptions.filenameInfo.minContributionScale = &minContributionScale;
+	pbrt::PbrtOptions.filenameInfo.knn = &knn;
+	pbrt::PbrtOptions.filenameInfo.nearestNeighbours = &nearestNeighbours;
+	pbrt::PbrtOptions.filenameInfo.photonRadius = &photonRadius;
+	
+	
+
 	powerDistrib = ComputeLightPowerDistribution(scene);
 
 	cloud.pts.resize(photonCount);

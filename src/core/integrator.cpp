@@ -334,6 +334,7 @@ void SamplerIntegrator::Render(const Scene &scene) {
             reporter.Update();
         }, nTiles);
 		pbrt::infoFile << "Rendering finished after " << (reporter.ElapsedMS() / 1000.0f) << "s\n";
+		pbrt::PbrtOptions.filenameInfo.renderTime = (reporter.ElapsedMS() / 1000.0f);
         reporter.Done();
     }
     LOG(INFO) << "Rendering finished";

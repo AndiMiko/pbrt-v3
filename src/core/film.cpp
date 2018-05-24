@@ -221,8 +221,16 @@ void Film::WriteImage(Float splatScale) {
 	} else {
 		filenameInfo << "_UNKN";
 	}
+	
 	filenameInfo << "_ps" << pbrt::PbrtOptions.filenameInfo.pixelSamples;
-	filenameInfo << "_t" << (std::time(0) - 1526000000);
+	filenameInfo << "_t" << (int)(pbrt::PbrtOptions.filenameInfo.renderTime);
+	if (pbrt::PbrtOptions.filenameInfo.knn) filenameInfo << "_knn-" << *pbrt::PbrtOptions.filenameInfo.knn;
+	if (pbrt::PbrtOptions.filenameInfo.photonCount) filenameInfo << "_pc" << (*pbrt::PbrtOptions.filenameInfo.photonCount / 1000) << "k";
+	if (pbrt::PbrtOptions.filenameInfo.minContributionScale) filenameInfo << "_mc" << *pbrt::PbrtOptions.filenameInfo.minContributionScale;
+	if (pbrt::PbrtOptions.filenameInfo.nearestNeighbours && *pbrt::PbrtOptions.filenameInfo.knn) filenameInfo << "_nn" << *pbrt::PbrtOptions.filenameInfo.nearestNeighbours;
+	if (pbrt::PbrtOptions.filenameInfo.photonRadius && !*pbrt::PbrtOptions.filenameInfo.knn) filenameInfo << "_pr" << *pbrt::PbrtOptions.filenameInfo.photonRadius;
+
+	filenameInfo << "_" << (std::time(0) % 100000);
 	size_t lastindex = filename.find_last_of(".");
 	std::string noext = filename.substr(0, lastindex);
 	std::string ext = filename.substr(lastindex, filename.length());

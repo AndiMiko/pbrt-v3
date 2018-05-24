@@ -180,8 +180,13 @@ struct Options {
 	struct FilenameInfo {
 		int pixelSamples;
 		std::string lightSampleStrategy;
-		int photonCount;
-		float minContributionScale;
+		const int* photonCount = nullptr;
+		const bool* knn = nullptr;
+		const float* minContributionScale = nullptr;
+		const float* nearestNeighbours = nullptr;
+		const float* photonRadius = nullptr;
+		float renderTime;
+
 		std::string infoFile;
 	};
 	FilenameInfo filenameInfo;
