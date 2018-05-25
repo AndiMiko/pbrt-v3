@@ -118,7 +118,7 @@ Spectrum PathIntegrator::Li(const RayDifferential &r, const Scene &scene,
         // (But skip this for perfectly specular BSDFs.)
         if (isect.bsdf->NumComponents(BxDFType(BSDF_ALL & ~BSDF_SPECULAR)) >
             0) {
-			const Distribution1D *distrib = lightDistribution->Lookup(isect.p);
+			const Distribution1D *distrib = lightDistribution->Lookup(isect.p, isect.n);
 
             ++totalPaths;
             Spectrum Ld = beta * UniformSampleOneLight(isect, scene, arena,

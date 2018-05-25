@@ -56,7 +56,7 @@ class LightDistribution {
 
     // Given a point |p| in space, this method returns a (hopefully
     // effective) sampling distribution for light sources at that point.
-    virtual const Distribution1D *Lookup(const Point3f &p) const = 0;
+    virtual const Distribution1D *Lookup(const Point3f &p, const Normal3f &n = Normal3f()) const = 0;
 };
 
 std::unique_ptr<LightDistribution> CreateLightSampleDistribution(
@@ -72,7 +72,7 @@ std::unique_ptr<LightDistribution> CreateLightSampleDistribution(
 class UniformLightDistribution : public LightDistribution {
   public:
     UniformLightDistribution(const Scene &scene);
-    const Distribution1D *Lookup(const Point3f &p) const;
+    const Distribution1D *Lookup(const Point3f &p, const Normal3f &n = Normal3f()) const;
 
   private:
     std::unique_ptr<Distribution1D> distrib;
@@ -90,7 +90,7 @@ class UniformLightDistribution : public LightDistribution {
 class PowerLightDistribution : public LightDistribution {
   public:
     PowerLightDistribution(const Scene &scene);
-    const Distribution1D *Lookup(const Point3f &p) const;
+    const Distribution1D *Lookup(const Point3f &p, const Normal3f &n = Normal3f()) const;
 
   private:
     std::unique_ptr<Distribution1D> distrib;
@@ -104,7 +104,7 @@ class SpatialLightDistribution : public LightDistribution {
   public:
     SpatialLightDistribution(const Scene &scene, int maxVoxels = 64);
     ~SpatialLightDistribution();
-    const Distribution1D *Lookup(const Point3f &p) const;
+    const Distribution1D *Lookup(const Point3f &p, const Normal3f &n = Normal3f()) const;
 
   private:
     // Compute the sampling distribution for the voxel with integer
@@ -130,7 +130,7 @@ class SpatialLightDistribution : public LightDistribution {
 class PhotonBasedVoxelLightDistribution : public LightDistribution {
 public:
 	PhotonBasedVoxelLightDistribution(const ParamSet &params, const Scene &scene);
-	const Distribution1D *Lookup(const Point3f &p) const;
+	const Distribution1D *Lookup(const Point3f &p, const Normal3f &n = Normal3f()) const;
 
 private:
 	const Scene &scene;
@@ -156,7 +156,7 @@ class PhotonBasedKdTreeLightDistribution : public LightDistribution {
 		
 public:
 	PhotonBasedKdTreeLightDistribution(const ParamSet &params, const Scene &scene);
-	const Distribution1D *Lookup(const Point3f &p) const;
+	const Distribution1D *Lookup(const Point3f &p, const Normal3f &n = Normal3f()) const;
 
 	template <typename T>
 	struct PhotonCloud
@@ -166,6 +166,7 @@ public:
 			T  x, y, z;
 			float beta;
 			int lightNum;
+			Vector3f fromDir;
 		};
 
 		std::vector<Photon> pts;

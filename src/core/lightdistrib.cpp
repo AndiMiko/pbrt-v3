@@ -82,14 +82,14 @@ UniformLightDistribution::UniformLightDistribution(const Scene &scene) {
     distrib.reset(new Distribution1D(&prob[0], int(prob.size())));
 }
 
-const Distribution1D *UniformLightDistribution::Lookup(const Point3f &p) const {
+const Distribution1D *UniformLightDistribution::Lookup(const Point3f &p, const Normal3f &n) const {
     return distrib.get();
 }
 
 PowerLightDistribution::PowerLightDistribution(const Scene &scene)
     : distrib(ComputeLightPowerDistribution(scene)) {}
 
-const Distribution1D *PowerLightDistribution::Lookup(const Point3f &p) const {
+const Distribution1D *PowerLightDistribution::Lookup(const Point3f &p, const Normal3f &n) const {
     return distrib.get();
 }
 
@@ -144,7 +144,7 @@ SpatialLightDistribution::~SpatialLightDistribution() {
     }
 }
 
-const Distribution1D *SpatialLightDistribution::Lookup(const Point3f &p) const {
+const Distribution1D *SpatialLightDistribution::Lookup(const Point3f &p, const Normal3f &n) const {
     ProfilePhase _(Prof::LightDistribLookup);
     ++nLookups;
 
@@ -322,7 +322,7 @@ PhotonBasedVoxelLightDistribution::PhotonBasedVoxelLightDistribution(const Param
 	shootPhotons(scene);
 }
 
-const Distribution1D *PhotonBasedVoxelLightDistribution::Lookup(const Point3f &p) const {
+const Distribution1D *PhotonBasedVoxelLightDistribution::Lookup(const Point3f &p, const Normal3f &n) const {
 	ProfilePhase _(Prof::LightDistribLookup);
 	++nLookups;
 
@@ -623,6 +623,7 @@ void PhotonBasedKdTreeLightDistribution::shootPhotons(const Scene &scene) {
 			cloud.pts[photonIndex].z = isect.p.z;
 			cloud.pts[photonIndex].beta = fbeta;
 			cloud.pts[photonIndex].lightNum = lightNum;
+			cloud.pts[photonIndex].fromDir = -Normalize(photonRay.d);
 		} else {
 			cloud.pts[photonIndex].x = FLT_MAX;
 			cloud.pts[photonIndex].y = FLT_MAX;
@@ -635,7 +636,7 @@ void PhotonBasedKdTreeLightDistribution::shootPhotons(const Scene &scene) {
 
 }
 
-const Distribution1D *PhotonBasedKdTreeLightDistribution::Lookup(const Point3f &p) const {
+const Distribution1D *PhotonBasedKdTreeLightDistribution::Lookup(const Point3f &p, const Normal3f &n) const {
 	ProfilePhase _(Prof::LightDistribLookup);
 	++nLookups;
 
@@ -653,9 +654,12 @@ const Distribution1D *PhotonBasedKdTreeLightDistribution::Lookup(const Point3f &
 		out_dist_sqr.resize(num_results);
 
 		for (size_t i = 0; i < num_results; i++) {
-			int lightNum = cloud.pts[ret_index[i]].lightNum;
-			float beta = cloud.pts[ret_index[i]].beta;
-			lightContrib[lightNum] += beta;
+			// count photon only if it came from the positive hemisphere of the intersection point
+			if (Dot(cloud.pts[ret_index[i]].fromDir, Normalize(n)) >= 0) {
+				int lightNum = cloud.pts[ret_index[i]].lightNum;
+				float beta = cloud.pts[ret_index[i]].beta;
+				lightContrib[lightNum] += beta;
+			}
 		}
 	} else {
 		// perform a search within searchradius photonRadius
@@ -665,9 +669,12 @@ const Distribution1D *PhotonBasedKdTreeLightDistribution::Lookup(const Point3f &
 		const size_t nMatches = kdtree.radiusSearch(&query_pt[0], photonRadius, ret_matches, params);
 		LOG_EVERY_N(INFO, 5000) << "radiusSearch(): radius=" << photonRadius << " -> " << nMatches << " matches";
 		for (size_t i = 0; i < nMatches; i++) {
-			int lightNum = cloud.pts[ret_matches[i].first].lightNum;
-			float beta = cloud.pts[ret_matches[i].first].beta;
-			lightContrib[lightNum] += beta;
+			// count photon only if it came from the positive hemisphere of the intersection point
+			if (Dot(cloud.pts[ret_matches[i].first].fromDir, Normalize(n)) >= 0) {
+				int lightNum = cloud.pts[ret_matches[i].first].lightNum;
+				float beta = cloud.pts[ret_matches[i].first].beta;
+				lightContrib[lightNum] += beta;
+			}
 		}
 	}
 
