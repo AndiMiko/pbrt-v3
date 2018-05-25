@@ -118,6 +118,56 @@ struct Distribution1D {
     Float funcInt;
 };
 
+// Interpolates several given distributions without copying them. The construction of this object 
+// takes O(m) and lookup O(m + log n) with m being the number of distributions that will be interpolated
+// and n the number of elements within the interpolated distributions. A simple copy init would need O(m * n)
+// and O(log n) lookup. We want to avoid running linearly!
+// Note that the number of elements within the distributions (n) have to be all equal and in the same order!
+struct InterpolatedDistribution1D : Distribution1D {
+
+	InterpolatedDistribution1D(const Float *f, const Distribution1D *distributions, int n)
+		: Distribution1D(f, n),
+		  distributions(distributions, distributions + n) {
+		CHECK(n > 0);
+	}
+
+	int Count() const { return (int)distributions[0].Count(); }
+
+	int SampleDiscrete(Float u, Float *pdf = nullptr, Float *uRemapped = nullptr) const {
+		// offset is the sampled distribution within which we further want to sample
+		int offset = FindInterval((int)cdf.size(), [&](int index) { return cdf[index] <= u; });
+
+		// uSub is a new u (0,1] which we use to sample within the distribution
+		Float uSub = (u - cdf[offset]) / (cdf[offset + 1] - cdf[offset]);
+
+		int sampledNum = distributions[offset].SampleDiscrete(uSub);
+
+		// Add up all probablities that this sample was taken
+		if (pdf) *pdf = DiscretePDF(sampledNum);
+			
+		// Calculating uRemapped is not possible sublinearly.
+		CHECK(!uRemapped);
+		return sampledNum;
+	}
+
+	Float DiscretePDF(int index) const {
+		CHECK(index >= 0 && index < Count());
+		Float pdf;
+		for (int i = 0; i < func.size(); ++i) {
+			pdf += distributions[i].DiscretePDF(index);
+		}
+		return pdf;
+	}
+
+	Float SampleContinuous(Float u, Float *pdf, int *off = nullptr) const {
+		CHECK(false);
+		// NOT IMPLEMENTED!
+	}
+
+	std::vector<Distribution1D> distributions;
+
+};
+
 Point2f RejectionSampleDisk(RNG &rng);
 Vector3f UniformSampleHemisphere(const Point2f &u);
 Float UniformHemispherePdf();
