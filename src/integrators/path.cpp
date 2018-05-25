@@ -127,6 +127,8 @@ Spectrum PathIntegrator::Li(const RayDifferential &r, const Scene &scene,
             if (Ld.IsBlack()) ++zeroRadiancePaths;
             CHECK_GE(Ld.y(), 0.f);
             L += Ld;
+
+			distrib->deleteMe();
         }
 
         // Sample BSDF to get new path direction

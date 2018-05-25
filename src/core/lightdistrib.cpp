@@ -65,9 +65,6 @@ std::unique_ptr<LightDistribution> CreateLightSampleDistribution(
 	else if (name == "photonvoxel")
 		return std::unique_ptr<LightDistribution>{
 			new PhotonBasedVoxelLightDistribution(params, scene)};
-	else if (name == "photonvoxelint")
-		return std::unique_ptr<LightDistribution>{
-			new PhotonBasedVoxelIntLightDistribution(params, scene)};
 	else if (name == "photontree")
 		return std::unique_ptr<LightDistribution>{
 			new PhotonBasedKdTreeLightDistribution(params, scene)};
@@ -708,6 +705,7 @@ const Distribution1D *PhotonBasedKdTreeLightDistribution::Lookup(const Point3f &
 		lightContrib[j] = std::max(lightContrib[j], minContrib);
 	}
 	Distribution1D* distr = new Distribution1D(&lightContrib[0], int(lightContrib.size()));
+	distr->deleteAfterUsage = true;
 	//LOG_EVERY_N(INFO, 5000) << "Initialized light distribution in point p= " << p << " " << distr->ToString();
 	return distr;
 }

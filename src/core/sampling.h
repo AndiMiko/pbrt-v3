@@ -112,10 +112,15 @@ struct Distribution1D {
 		return ss.str();
 	}
 
+	void deleteMe() const {
+		if (deleteAfterUsage) delete this;
+	}
 
     // Distribution1D Public Data
     std::vector<Float> func, cdf;
     Float funcInt;
+	bool deleteAfterUsage = false;
+
 };
 
 // Interpolates several given distributions without copying them. The construction of this object 
