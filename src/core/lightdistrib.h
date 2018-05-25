@@ -57,8 +57,7 @@ class LightDistribution {
     // Given a point |p| in space, this method returns a (hopefully
     // effective) sampling distribution for light sources at that point.
     virtual const Distribution1D *Lookup(const Point3f &p, const Normal3f &n = Normal3f()) const = 0;
-  private:
-	  void calcPackedPosAndHash(const Point3f &p, uint64_t* packedPos, uint64_t* hash);
+	  
 };
 
 std::unique_ptr<LightDistribution> CreateLightSampleDistribution(
@@ -133,33 +132,11 @@ class PhotonBasedVoxelLightDistribution : public LightDistribution {
 public:
 	PhotonBasedVoxelLightDistribution(const ParamSet &params, const Scene &scene);
 	const Distribution1D *Lookup(const Point3f &p, const Normal3f &n = Normal3f()) const;
-
+	
 private:
-	const Scene &scene;
-	std::unique_ptr<Distribution1D> powerDistrib;
-	const int photonCount;
-	const int maxVoxels;
+	void calcPackedPosAndHash(const Point3f &p, uint64_t* packedPos, uint64_t* hash) const;
+	const Distribution1D *getDistribution(uint64_t packedPos, uint64_t hash, int* nProbes) const;
 
-	int nVoxels[3];
-	struct HashEntry {
-		std::atomic<uint64_t> packedPos;
-		std::unique_ptr<std::vector<std::atomic<Float>>> lightContrib;
-		Distribution1D *distribution;
-	};
-	mutable std::unique_ptr<HashEntry[]> hashTable;
-	size_t hashTableSize;
-
-	void initVoxelHashTable();
-	void shootPhotons(const Scene &scene);
-
-};
-
-class PhotonBasedVoxelIntLightDistribution : public LightDistribution {
-public:
-	PhotonBasedVoxelIntLightDistribution(const ParamSet &params, const Scene &scene);
-	const Distribution1D *Lookup(const Point3f &p, const Normal3f &n = Normal3f()) const;
-
-private:
 	const Scene &scene;
 	std::unique_ptr<Distribution1D> powerDistrib;
 	const int photonCount;
