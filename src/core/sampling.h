@@ -159,7 +159,7 @@ struct InterpolatedDistribution1D : Distribution1D {
 		CHECK(index >= 0 && index < Count());
 		Float pdf = 0;
 		for (int i = 0; i < func.size(); ++i) {
-			pdf += distributions[i]->DiscretePDF(index);
+			pdf += distributions[i]->DiscretePDF(index) * (cdf[i + 1] - cdf[i]);
 		}
 		return pdf;
 	}
