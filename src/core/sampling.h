@@ -67,8 +67,8 @@ struct Distribution1D {
             for (int i = 1; i < n + 1; ++i) cdf[i] /= funcInt;
         }
     }
-    int Count() const { return (int)func.size(); }
-    Float SampleContinuous(Float u, Float *pdf, int *off = nullptr) const {
+    virtual int Count() const { return (int)func.size(); }
+	virtual Float SampleContinuous(Float u, Float *pdf, int *off = nullptr) const {
         // Find surrounding CDF segments and _offset_
         int offset = FindInterval((int)cdf.size(),
                                   [&](int index) { return cdf[index] <= u; });
@@ -87,7 +87,7 @@ struct Distribution1D {
         // Return $x\in{}[0,1)$ corresponding to sample
         return (offset + du) / Count();
     }
-    int SampleDiscrete(Float u, Float *pdf = nullptr,
+	virtual int SampleDiscrete(Float u, Float *pdf = nullptr,
                        Float *uRemapped = nullptr) const {
         // Find surrounding CDF segments and _offset_
         int offset = FindInterval((int)cdf.size(),
@@ -98,12 +98,12 @@ struct Distribution1D {
         if (uRemapped) CHECK(*uRemapped >= 0.f && *uRemapped <= 1.f);
         return offset;
     }
-    Float DiscretePDF(int index) const {
+	virtual Float DiscretePDF(int index) const {
         CHECK(index >= 0 && index < Count());
         return func[index] / (funcInt * Count());
     }
 
-	std::string ToString() const {
+	virtual std::string ToString() const {
 		std::stringstream ss;
 		ss << "distr: ";
 		for (int i = 0; i < func.size(); ++i) {
@@ -157,7 +157,7 @@ struct InterpolatedDistribution1D : Distribution1D {
 
 	Float DiscretePDF(int index) const {
 		CHECK(index >= 0 && index < Count());
-		Float pdf;
+		Float pdf = 0;
 		for (int i = 0; i < func.size(); ++i) {
 			pdf += distributions[i]->DiscretePDF(index);
 		}
