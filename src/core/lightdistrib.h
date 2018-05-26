@@ -134,13 +134,15 @@ public:
 	const Distribution1D *Lookup(const Point3f &p, const Normal3f &n = Normal3f()) const;
 	
 private:
-	void calcPackedPosAndHash(const Point3f &p, uint64_t* packedPos, uint64_t* hash) const;
+	void calcPackedPosAndHash(uint64_t* packedPos, uint64_t* hash, Point3i* pi) const;
 	const Distribution1D *getDistribution(uint64_t packedPos, uint64_t hash, int* nProbes) const;
+	const Distribution1D *getInterpolatedDistribution(const Point3f &p, uint64_t packedPos, uint64_t hash, Point3i* voxelId, int* nProbes) const;
 
 	const Scene &scene;
 	std::unique_ptr<Distribution1D> powerDistrib;
 	const int photonCount;
 	const int maxVoxels;
+	const bool interpolateCdf;
 
 	int nVoxels[3];
 	struct HashEntry {

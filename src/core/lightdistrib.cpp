@@ -41,6 +41,8 @@
 #include "integrator.h"
 #include "paramset.h"
 #include <numeric>
+#include <math.h>
+#include <fenv.h>
 
 using namespace nanoflann;
 
@@ -312,19 +314,10 @@ SpatialLightDistribution::ComputeDistribution(Point3i pi) const {
 }
 
 
-void PhotonBasedVoxelLightDistribution::calcPackedPosAndHash(const Point3f &p, uint64_t* packedPos, uint64_t* hash) const {
-	// First, compute integer voxel coordinates for the given point |p|
-	// with respect to the overall voxel grid.
-	Vector3f offset = scene.WorldBound().Offset(p);  // offset in [0,1].
-	Point3i pi;
-	for (int i = 0; i < 3; ++i)
-		// The clamp should almost never be necessary, but is there to be
-		// robust to computed intersection points being slightly outside
-		// the scene bounds due to floating-point roundoff error.
-		pi[i] = Clamp(int(offset[i] * nVoxels[i]), 0, nVoxels[i] - 1);
+void PhotonBasedVoxelLightDistribution::calcPackedPosAndHash(uint64_t* packedPos, uint64_t* hash, Point3i* pi) const {
 
 	// Pack the 3D integer voxel coordinates into a single 64-bit value.
-	*packedPos = (uint64_t(pi[0]) << 40) | (uint64_t(pi[1]) << 20) | pi[2];
+	*packedPos = (uint64_t((*pi)[0]) << 40) | (uint64_t((*pi)[1]) << 20) | (*pi)[2];
 	CHECK_NE(*packedPos, invalidPackedPos);
 
 	// Compute a hash value from the packed voxel coordinates.  We could
@@ -347,6 +340,7 @@ const Distribution1D *PhotonBasedVoxelLightDistribution::getDistribution(uint64_
 	// Now, see if the hash table already has an entry for the voxel. We'll
 	// use quadratic probing when the hash table entry is already used for
 	// another value; step stores the square root of the probe step.
+	
 	int step = 1;
 	while (true) {
 		++(*nProbes);
@@ -376,10 +370,48 @@ const Distribution1D *PhotonBasedVoxelLightDistribution::getDistribution(uint64_
 	}
 }
 
+const Distribution1D *PhotonBasedVoxelLightDistribution::
+		getInterpolatedDistribution(const Point3f &p, uint64_t packedPos, uint64_t hash, Point3i* voxelId, int* nProbes) const {
+	Vector3f offset = scene.WorldBound().Offset(p);  // offset in [0,1].
+	std::vector<const Distribution1D*> distributions;
+	std::vector<Point3i> voxelIds;
+	std::vector<Float> influence;
+	distributions.push_back(getDistribution(packedPos, hash, nProbes));
+	voxelIds.push_back(*voxelId);
+	influence.push_back(1.0f);
+	/*
+	for (int i = 0; i < 3; ++i) {
+		Float offsetInVoxel = (fmod(offset[i] / (1.0f / nVoxels[i]), 1.0f)) - 0.5f;
+		if (offsetInVoxel == 0.f) continue; // skip this direction as there is no influence
+		int size = voxelIds.size();
+		for (int n = 0; n < size; ++n) {
+			Point3i newId = Point3i(voxelIds[n]);
+			// go a voxel back or forth
+			//newId[i] += offsetInVoxel > 0? -1 : 1;
+
+			// if we are on a boundary we won't interpolate into this direction, skip then
+			if (newId[i] >= 0 && newId[i] < nVoxels[i]) {
+				uint64_t newPackedPos, newHash;
+				calcPackedPosAndHash(&newPackedPos, &newHash, &newId);
+				distributions.push_back(getDistribution(newPackedPos, newHash, nProbes));
+				voxelIds.push_back(newId);
+				influence.push_back(influence[n] * abs(offsetInVoxel));
+
+				influence[n] *= (1 - abs(offsetInVoxel));
+			}
+
+		}
+	}*/
+	InterpolatedDistribution1D* iDistr = new InterpolatedDistribution1D(&influence[0], &distributions[0], influence.size());
+	iDistr->deleteAfterUsage = true;
+	return iDistr;
+}
+
 PhotonBasedVoxelLightDistribution::PhotonBasedVoxelLightDistribution(const ParamSet &params, const Scene &scene) : 
 	scene(scene), 
 	photonCount(params.FindOneInt("photonCount", 100000)), 
-	maxVoxels(params.FindOneInt("maxVoxels", 64)) {
+	maxVoxels(params.FindOneInt("maxVoxels", 64)),
+	interpolateCdf(params.FindOneBool("interpolateCdf", true)) {
 	ProfilePhase _(Prof::LightDistribCreation);
 
 	powerDistrib = ComputeLightPowerDistribution(scene);
@@ -391,13 +423,30 @@ const Distribution1D *PhotonBasedVoxelLightDistribution::Lookup(const Point3f &p
 	ProfilePhase _(Prof::LightDistribLookup);
 	++nLookups;
 
+	// First, compute integer voxel coordinates for the given point |p|
+	// with respect to the overall voxel grid.
+	Vector3f offset = scene.WorldBound().Offset(p);  // offset in [0,1].
+
+	Point3i voxelId;
+	for (int i = 0; i < 3; ++i)
+		// The clamp should almost never be necessary, but is there to be
+		// robust to computed intersection points being slightly outside
+		// the scene bounds due to floating-point roundoff error.
+		voxelId[i] = Clamp(int(offset[i] * nVoxels[i]), 0, nVoxels[i] - 1);
+
 	uint64_t packedPos, hash;
-	calcPackedPosAndHash(p, &packedPos, &hash);
+	calcPackedPosAndHash(&packedPos, &hash, &voxelId);
 
 	int nProbes = 0;
-	const Distribution1D *distr = getDistribution(packedPos, hash, &nProbes);
-	ReportValue(nProbesPerLookup, nProbes);
+	const Distribution1D *distr;
 
+	if (interpolateCdf) {
+		distr = getInterpolatedDistribution(p, packedPos, hash, &voxelId, &nProbes);
+	} else {
+		distr = getDistribution(packedPos, hash, &nProbes);	
+	}
+
+	ReportValue(nProbesPerLookup, nProbes);
 	return distr;
 }
 
