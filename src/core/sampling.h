@@ -173,6 +173,54 @@ struct InterpolatedDistribution1D : Distribution1D {
 
 };
 
+struct SparseDistribution1D : Distribution1D {
+
+	SparseDistribution1D(const Float *f, const int *sampleMap, int n, Float uniProb, int nAll)
+		: Distribution1D(f, n),
+		  sampleMap(sampleMap, sampleMap + n),
+		  uniProb(uniProb),
+		  nAll(nAll) {
+		CHECK(n > 0);
+	}
+
+	int Count() const { return nAll; }
+
+	int SampleDiscrete(Float u, Float *pdf = nullptr, Float *uRemapped = nullptr) const {
+		int sampledNum;
+		if (u > (1 - uniProb)) {
+			// sample from uniform part
+			Float newU = (u - (1 - uniProb)) / uniProb;
+			sampledNum = newU * nAll;
+		} else {
+			// sample from sparse part
+			Float newU = u / (1 - uniProb);
+			sampledNum = Distribution1D::SampleDiscrete(newU, pdf, uRemapped);
+		}
+		if (pdf) *pdf = DiscretePDF(sampledNum);
+		// Calculating uRemapped is not implemented for SparseDistribution1D (but could be).
+		CHECK(!uRemapped);
+		return sampledNum;
+	}
+
+	Float DiscretePDF(int index) const {
+		CHECK(index >= 0 && index < Count());
+		// add the probability that the num got sampled in the uniform part
+		Float pdf = (1 / nAll) / uniProb;
+		// add the probability that the num got sampled in the sparse part
+		pdf += Distribution1D::DiscretePDF(index) / (1 - uniProb);
+		return pdf;
+	}
+
+	Float SampleContinuous(Float u, Float *pdf, int *off = nullptr) const {
+		CHECK(false);
+		// NOT IMPLEMENTED!
+	}
+
+	std::vector<int> sampleMap;
+	Float uniProb;
+	int nAll;
+};
+
 Point2f RejectionSampleDisk(RNG &rng);
 Vector3f UniformSampleHemisphere(const Point2f &u);
 Float UniformHemispherePdf();
