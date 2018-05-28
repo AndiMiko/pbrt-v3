@@ -43,6 +43,7 @@
 #include "geometry.h"
 #include "rng.h"
 #include <algorithm>
+#include <unordered_map>
 
 namespace pbrt {
 
@@ -175,12 +176,21 @@ struct InterpolatedDistribution1D : Distribution1D {
 
 struct SparseDistribution1D : Distribution1D {
 
-	SparseDistribution1D(const Float *f, const int *sampleMap, int n, Float uniProb, int nAll)
-		: Distribution1D(f, n),
-		  sampleMap(sampleMap, sampleMap + n),
-		  uniProb(uniProb),
-		  nAll(nAll) {
-		CHECK(n > 0);
+	SparseDistribution1D(std::unordered_map<int, Float> contribMap, Float uniProb, int nAll)
+		: Distribution1D(createMaps(contribMap), contribMap.size()),
+		uniProb(uniProb),
+		nAll(nAll) {
+		CHECK(nAll > 0);
+	}
+
+	Float* createMaps(std::unordered_map<int, Float> contribMap) {
+		int i = 0;
+		for (auto kv : contribMap) {
+			sampleMap.push_back(kv.first);
+			contrib.push_back(kv.second);
+			backMap[kv.first] = i++;
+		}
+		return &contrib[0];
 	}
 
 	int Count() const { return nAll; }
@@ -194,7 +204,7 @@ struct SparseDistribution1D : Distribution1D {
 		} else {
 			// sample from sparse part
 			Float newU = u / (1 - uniProb);
-			sampledNum = Distribution1D::SampleDiscrete(newU, pdf, uRemapped);
+			sampledNum = sampleMap[Distribution1D::SampleDiscrete(newU, pdf, uRemapped)];
 		}
 		if (pdf) *pdf = DiscretePDF(sampledNum);
 		// Calculating uRemapped is not implemented for SparseDistribution1D (but could be).
@@ -205,9 +215,9 @@ struct SparseDistribution1D : Distribution1D {
 	Float DiscretePDF(int index) const {
 		CHECK(index >= 0 && index < Count());
 		// add the probability that the num got sampled in the uniform part
-		Float pdf = (1 / nAll) / uniProb;
+		Float pdf = uniProb * nAll;
 		// add the probability that the num got sampled in the sparse part
-		pdf += Distribution1D::DiscretePDF(index) / (1 - uniProb);
+		pdf += Distribution1D::DiscretePDF(backMap.at(index)) / (1 - uniProb);
 		return pdf;
 	}
 
@@ -216,7 +226,9 @@ struct SparseDistribution1D : Distribution1D {
 		// NOT IMPLEMENTED!
 	}
 
+	std::unordered_map<int, int> backMap;
 	std::vector<int> sampleMap;
+	std::vector<Float> contrib;
 	Float uniProb;
 	int nAll;
 };
