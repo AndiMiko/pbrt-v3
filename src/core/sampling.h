@@ -176,21 +176,29 @@ struct InterpolatedDistribution1D : Distribution1D {
 
 struct SparseDistribution1D : Distribution1D {
 
-	SparseDistribution1D(std::unordered_map<int, Float> contribMap, Float uniProb, int nAll)
-		: Distribution1D(createMaps(contribMap), contribMap.size()),
-		uniProb(uniProb),
-		nAll(nAll) {
-		CHECK(nAll > 0);
-	}
-
-	Float* createMaps(std::unordered_map<int, Float> contribMap) {
+	static SparseDistribution1D* createSparseDistribution1D(std::unordered_map<int, Float> contribMap, Float uniProb, int nAll) {
+		std::unordered_map<int, int> backMap;
+		std::vector<int> sampleMap;
+		std::vector<Float> contrib;
 		int i = 0;
 		for (auto kv : contribMap) {
 			sampleMap.push_back(kv.first);
 			contrib.push_back(kv.second);
 			backMap[kv.first] = i++;
 		}
-		return &contrib[0];
+		SparseDistribution1D* distr = new SparseDistribution1D(backMap, sampleMap, contrib, uniProb, nAll);
+		distr->deleteAfterUsage = true;
+		return distr;
+	}
+
+	SparseDistribution1D(std::unordered_map<int, int> backMap, std::vector<int> sampleMap, std::vector<Float> contrib, Float uniProb, int nAll)
+		: Distribution1D(contrib.size() == 0? nullptr : &contrib[0], contrib.size()),
+		backMap(backMap),
+		sampleMap(sampleMap),
+		uniProb(contrib.size() == 0 ? 1.0 : uniProb),
+		uniProbSingle(this->uniProb / nAll),
+		nAll(nAll) {
+		CHECK(nAll > 0);
 	}
 
 	int Count() const { return nAll; }
@@ -215,9 +223,13 @@ struct SparseDistribution1D : Distribution1D {
 	Float DiscretePDF(int index) const {
 		CHECK(index >= 0 && index < Count());
 		// add the probability that the num got sampled in the uniform part
-		Float pdf = uniProb * nAll;
+		Float pdf = uniProbSingle;
 		// add the probability that the num got sampled in the sparse part
-		pdf += Distribution1D::DiscretePDF(backMap.at(index)) / (1 - uniProb);
+		auto it = backMap.find(index);
+		if (it != backMap.end()) {
+			Float pdfIn = Distribution1D::DiscretePDF(it->second);
+			pdf += pdfIn * (1 - uniProb);
+		}
 		return pdf;
 	}
 
@@ -228,8 +240,8 @@ struct SparseDistribution1D : Distribution1D {
 
 	std::unordered_map<int, int> backMap;
 	std::vector<int> sampleMap;
-	std::vector<Float> contrib;
 	Float uniProb;
+	Float uniProbSingle;
 	int nAll;
 };
 
