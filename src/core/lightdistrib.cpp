@@ -704,8 +704,8 @@ const Distribution1D *PhotonBasedKdTreeLightDistribution::Lookup(const Point3f &
 	++nLookups;
 
 	const Float query_pt[3] = { p.x, p.y, p.z };
-	std::vector<Float> lightContrib(scene.lights.size(), Float(0));
-
+	//std::vector<Float> lightContrib(scene.lights.size(), Float(0));
+	std::unordered_map<int, Float> lightContrib;
 	if (knn) {
 		// perform a k-nearest-neighbour search to find #nearestNeighbours
 		size_t num_results = nearestNeighbours;
@@ -730,7 +730,7 @@ const Distribution1D *PhotonBasedKdTreeLightDistribution::Lookup(const Point3f &
 		nanoflann::SearchParams params;
 
 		const size_t nMatches = kdtree.radiusSearch(&query_pt[0], photonRadius, ret_matches, params);
-		LOG_EVERY_N(INFO, 5000) << "radiusSearch(): radius=" << photonRadius << " -> " << nMatches << " matches";
+		//LOG_EVERY_N(INFO, 5000) << "radiusSearch(): radius=" << photonRadius << " -> " << nMatches << " matches";
 		for (size_t i = 0; i < nMatches; i++) {
 			// count photon only if it came from the positive hemisphere of the intersection point
 			if (Dot(cloud.pts[ret_matches[i].first].fromDir, Normalize(n)) >= 0) {
@@ -740,7 +740,7 @@ const Distribution1D *PhotonBasedKdTreeLightDistribution::Lookup(const Point3f &
 			}
 		}
 	}
-
+	/*
 	// We don't want to leave any lights with a zero probability; it's
 	// possible that a light contributes to points in the voxel even though
 	// we didn't find such a point when sampling above.  Therefore, compute
@@ -753,10 +753,10 @@ const Distribution1D *PhotonBasedKdTreeLightDistribution::Lookup(const Point3f &
 	for (size_t j = 0; j < lightContrib.size(); ++j) {
 		lightContrib[j] = std::max(lightContrib[j], minContrib);
 	}
-	Distribution1D* distr = new Distribution1D(&lightContrib[0], int(lightContrib.size()));
-	distr->deleteAfterUsage = true;
+	//Distribution1D* distr = new Distribution1D(&lightContrib[0], int(lightContrib.size()));
+	*/	
 	//LOG_EVERY_N(INFO, 5000) << "Initialized light distribution in point p= " << p << " " << distr->ToString();
-	return distr;
+	return SparseDistribution1D::createSparseDistribution1D(lightContrib, minContributionScale, scene.lights.size());;
 }
 
 
