@@ -176,7 +176,7 @@ struct InterpolatedDistribution1D : Distribution1D {
 
 struct SparseDistribution1D : Distribution1D {
 
-	static SparseDistribution1D* createSparseDistribution1D(std::unordered_map<int, Float> contribMap, Float uniProb, int nAll) {
+	static SparseDistribution1D* createSparseDistribution1D(std::unordered_map<int, Float> contribMap, Float uniProb, int nAll, bool del = true) {
 		std::unordered_map<int, int> backMap;
 		std::vector<int> sampleMap;
 		std::vector<Float> contrib;
@@ -187,7 +187,7 @@ struct SparseDistribution1D : Distribution1D {
 			backMap[kv.first] = i++;
 		}
 		SparseDistribution1D* distr = new SparseDistribution1D(backMap, sampleMap, contrib, uniProb, nAll);
-		distr->deleteAfterUsage = true;
+		distr->deleteAfterUsage = del;
 		return distr;
 	}
 

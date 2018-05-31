@@ -70,6 +70,9 @@ std::unique_ptr<LightDistribution> CreateLightSampleDistribution(
 	else if (name == "photontree")
 		return std::unique_ptr<LightDistribution>{
 			new PhotonBasedKdTreeLightDistribution(params, scene)};
+	else if (name == "cdftree")
+		return std::unique_ptr<LightDistribution>{
+		new PhotonBasedCdfKdTreeLightDistribution(params, scene)};
     else {
         Error(
             "Light sample distribution type \"%s\" unknown. Using \"spatial\".",
@@ -756,8 +759,184 @@ const Distribution1D *PhotonBasedKdTreeLightDistribution::Lookup(const Point3f &
 	//Distribution1D* distr = new Distribution1D(&lightContrib[0], int(lightContrib.size()));
 	*/	
 	//LOG_EVERY_N(INFO, 5000) << "Initialized light distribution in point p= " << p << " " << distr->ToString();
-	return SparseDistribution1D::createSparseDistribution1D(lightContrib, minContributionScale, scene.lights.size());;
+	return SparseDistribution1D::createSparseDistribution1D(lightContrib, minContributionScale, scene.lights.size());
 }
 
+PhotonBasedCdfKdTreeLightDistribution::PhotonBasedCdfKdTreeLightDistribution(const ParamSet &params, const Scene &scene) :
+	scene(scene),
+	kdtree(3 /*dim*/, cdfCloud, KDTreeSingleIndexAdaptorParams(10 /* max leaf */)),
+	photonCount(params.FindOneInt("photonCount", 100000)),
+	minContributionScale(params.FindOneFloat("minContributionScale", 0.001)),
+	nearestNeighbours(params.FindOneInt("nearestNeighbours", 50)),
+	photonRadius(params.FindOneFloat("photonRadius", 0.1)),
+	knn(params.FindOneBool("knn", true)),
+	cdfCount(params.FindOneInt("cdfCount", 50))
+{
+	ProfilePhase _(Prof::LightDistribCreation);
+	pbrt::PbrtOptions.filenameInfo.photonCount = &photonCount;
+	pbrt::PbrtOptions.filenameInfo.minContributionScale = &minContributionScale;
+	pbrt::PbrtOptions.filenameInfo.knn = &knn;
+	pbrt::PbrtOptions.filenameInfo.nearestNeighbours = &nearestNeighbours;
+	pbrt::PbrtOptions.filenameInfo.photonRadius = &photonRadius;
+
+
+
+	powerDistrib = ComputeLightPowerDistribution(scene);
+
+	cloud.pts.resize(photonCount);
+	shootPhotons(scene);
+	buildCluster();
+	kdtree.buildIndex();
+}
+
+void PhotonBasedCdfKdTreeLightDistribution::buildCluster() {
+	std::vector<std::array<Float, 3>> data;
+	data.resize(photonCount);
+	for (const auto& photon : cloud.pts) {
+		data.push_back({ photon.x, photon.y, photon.z });
+	}
+
+	auto cluster_data = dkm::kmeans_lloyd(data, cdfCount);
+
+
+	std::vector<std::unordered_map<int, Float>> lightContributions(cdfCount);
+	// add contributions to cdfs
+	for (int i = 0; i < data.size(); i++) {
+		const auto& label = std::get<1>(cluster_data)[i];
+		// potentially reduce photon beta influence with distance to cluster centroid!?
+		lightContributions[label][cloud.pts[i].lightNum] += cloud.pts[i].beta;
+	}
+
+	// build cdf cloud
+	cdfCloud.pts.resize(cdfCount);
+	for (int i = 0; i < cdfCount; i++) {
+		const auto& mean = std::get<0>(cluster_data)[i];
+		cdfCloud.pts[i].x = mean[0];
+		cdfCloud.pts[i].y = mean[1];
+		cdfCloud.pts[i].z = mean[2];
+		cdfCloud.pts[i].distr = SparseDistribution1D::createSparseDistribution1D(lightContributions[i], minContributionScale, scene.lights.size(), false);
+	}
+}
+
+void PhotonBasedCdfKdTreeLightDistribution::shootPhotons(const Scene &scene) {
+
+	ParallelFor([&](int photonIndex) {
+		// Follow photon path for _photonIndex_
+		uint64_t haltonIndex = photonIndex;
+		int haltonDim = 0;
+
+		// Choose light to shoot photon from
+		Float lightPdf;
+		Float lightSample = RadicalInverse(haltonDim++, haltonIndex);
+		int lightNum = powerDistrib->SampleDiscrete(lightSample, &lightPdf);
+		const std::shared_ptr<Light> &light = scene.lights[lightNum];
+
+		// Compute sample values for photon ray leaving light source
+		Point2f uLight0(RadicalInverse(haltonDim, haltonIndex),
+			RadicalInverse(haltonDim + 1, haltonIndex));
+		Point2f uLight1(RadicalInverse(haltonDim + 2, haltonIndex),
+			RadicalInverse(haltonDim + 3, haltonIndex));
+		// Camera not available here, add Camera to the Scene object?
+		Float uLightTime = 0; //Lerp(RadicalInverse(haltonDim + 4, haltonIndex), camera->shutterOpen, camera->shutterClose);
+		haltonDim += 5;
+
+		// Generate _photonRay_ from light source and initialize _beta_
+		RayDifferential photonRay;
+		Normal3f nLight;
+		Float pdfPos, pdfDir;
+		Spectrum Le =
+			light->Sample_Le(uLight0, uLight1, uLightTime, &photonRay,
+				&nLight, &pdfPos, &pdfDir);
+		if (pdfPos == 0 || pdfDir == 0 || Le.IsBlack()) return;
+		Spectrum beta = (AbsDot(nLight, photonRay.d) * Le) /
+			(lightPdf * pdfPos * pdfDir);
+		if (beta.IsBlack()) return;
+		// TODO: is this correct? can we assume all beta's are the same?
+		Float fbeta = beta.MaxComponentValue();
+
+		// Follow photon through scene and record intersection
+		SurfaceInteraction isect;
+		if (scene.Intersect(photonRay, &isect)) {
+			// Add photon to kd-tree if intersection found and is difuse
+			// TODO: difuse
+			cloud.pts[photonIndex].x = isect.p.x;
+			cloud.pts[photonIndex].y = isect.p.y;
+			cloud.pts[photonIndex].z = isect.p.z;
+			cloud.pts[photonIndex].beta = fbeta;
+			cloud.pts[photonIndex].lightNum = lightNum;
+			cloud.pts[photonIndex].fromDir = -Normalize(photonRay.d);
+		}
+		else {
+			cloud.pts[photonIndex].x = FLT_MAX;
+			cloud.pts[photonIndex].y = FLT_MAX;
+			cloud.pts[photonIndex].z = FLT_MAX;
+			cloud.pts[photonIndex].beta = 0.0;
+			cloud.pts[photonIndex].lightNum = -1;
+		}
+
+	}, photonCount, 4096);
+
+}
+
+const Distribution1D *PhotonBasedCdfKdTreeLightDistribution::Lookup(const Point3f &p, const Normal3f &n) const {
+	ProfilePhase _(Prof::LightDistribLookup);
+	++nLookups;
+
+	const Float query_pt[3] = { p.x, p.y, p.z };
+	//std::vector<Float> lightContrib(scene.lights.size(), Float(0));
+	std::unordered_map<int, Float> lightContrib;
+	if (knn) {
+		// perform a k-nearest-neighbour search to find #nearestNeighbours
+		size_t num_results = nearestNeighbours;
+		std::vector<size_t> ret_index(num_results);
+		std::vector<Float> out_dist_sqr(num_results);
+
+		num_results = kdtree.knnSearch(&query_pt[0], num_results, &ret_index[0], &out_dist_sqr[0]);
+		ret_index.resize(num_results);
+		out_dist_sqr.resize(num_results);
+
+		for (size_t i = 0; i < num_results; i++) {
+			// count photon only if it came from the positive hemisphere of the intersection point
+			if (Dot(cloud.pts[ret_index[i]].fromDir, Normalize(n)) >= 0) {
+				int lightNum = cloud.pts[ret_index[i]].lightNum;
+				float beta = cloud.pts[ret_index[i]].beta;
+				lightContrib[lightNum] += beta;
+			}
+		}
+	}
+	else {
+		// perform a search within searchradius photonRadius
+		std::vector<std::pair<size_t, Float>> ret_matches;
+		nanoflann::SearchParams params;
+
+		const size_t nMatches = kdtree.radiusSearch(&query_pt[0], photonRadius, ret_matches, params);
+		//LOG_EVERY_N(INFO, 5000) << "radiusSearch(): radius=" << photonRadius << " -> " << nMatches << " matches";
+		for (size_t i = 0; i < nMatches; i++) {
+			// count photon only if it came from the positive hemisphere of the intersection point
+			if (Dot(cloud.pts[ret_matches[i].first].fromDir, Normalize(n)) >= 0) {
+				int lightNum = cloud.pts[ret_matches[i].first].lightNum;
+				float beta = cloud.pts[ret_matches[i].first].beta;
+				lightContrib[lightNum] += beta;
+			}
+		}
+	}
+	/*
+	// We don't want to leave any lights with a zero probability; it's
+	// possible that a light contributes to points in the voxel even though
+	// we didn't find such a point when sampling above.  Therefore, compute
+	// a minimum (small) weight and ensure that all lights are given at
+	// least the corresponding probability.
+	Float sumContrib =
+	std::accumulate(lightContrib.begin(), lightContrib.end(), Float(0));
+	Float avgContrib = sumContrib / lightContrib.size();
+	Float minContrib = (avgContrib > 0) ? minContributionScale * avgContrib : 1;
+	for (size_t j = 0; j < lightContrib.size(); ++j) {
+	lightContrib[j] = std::max(lightContrib[j], minContrib);
+	}
+	//Distribution1D* distr = new Distribution1D(&lightContrib[0], int(lightContrib.size()));
+	*/
+	//LOG_EVERY_N(INFO, 5000) << "Initialized light distribution in point p= " << p << " " << distr->ToString();
+	return SparseDistribution1D::createSparseDistribution1D(lightContrib, minContributionScale, scene.lights.size());;
+}
 
 }  // namespace pbrt

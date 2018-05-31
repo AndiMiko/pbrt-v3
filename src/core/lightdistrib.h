@@ -42,6 +42,7 @@
 #include <unordered_map>
 #include <vector>
 #include <nanoflann.hpp>
+#include <dkm.hpp>
 
 using namespace nanoflann;
 
@@ -210,6 +211,92 @@ private:
 	PhotonCloud<Float> cloud;
 	my_kd_tree_t kdtree;
 
+	void shootPhotons(const Scene &scene);
+
+};
+
+
+class PhotonBasedCdfKdTreeLightDistribution : public LightDistribution {
+
+public:
+	PhotonBasedCdfKdTreeLightDistribution(const ParamSet &params, const Scene &scene);
+	const Distribution1D *Lookup(const Point3f &p, const Normal3f &n = Normal3f()) const;
+
+	template <typename T>
+	struct PhotonCloud
+	{
+		struct Photon
+		{
+			T  x, y, z;
+			float beta;
+			int lightNum;
+			Vector3f fromDir;
+		};
+
+		std::vector<Photon> pts;
+
+		// Must return the number of data points
+		inline size_t kdtree_get_point_count() const { return pts.size(); }
+
+		// Returns the dim'th component of the idx'th point in the class
+		inline T kdtree_get_pt(const size_t idx, int dim) const
+		{
+			if (dim == 0) return pts[idx].x;
+			else if (dim == 1) return pts[idx].y;
+			else return pts[idx].z;
+		}
+
+		template <class BBOX>
+		bool kdtree_get_bbox(BBOX& /* bb */) const { return false; }
+	};
+
+	template <typename T>
+	struct CdfCloud
+	{
+		struct Cdf
+		{
+			T  x, y, z;
+			Distribution1D* distr;
+		};
+
+		std::vector<Cdf> pts;
+
+		// Must return the number of data points
+		inline size_t kdtree_get_point_count() const { return pts.size(); }
+
+		// Returns the dim'th component of the idx'th point in the class
+		inline T kdtree_get_pt(const size_t idx, int dim) const
+		{
+			if (dim == 0) return pts[idx].x;
+			else if (dim == 1) return pts[idx].y;
+			else return pts[idx].z;
+		}
+
+		template <class BBOX>
+		bool kdtree_get_bbox(BBOX& /* bb */) const { return false; }
+	};
+
+private:
+	const Scene &scene;
+	std::unique_ptr<Distribution1D> powerDistrib;
+	const int photonCount;
+	const int cdfCount;
+	const float minContributionScale;
+	const float photonRadius;
+	const float nearestNeighbours;
+	const bool knn;
+
+	typedef KDTreeSingleIndexAdaptor<
+		L2_Simple_Adaptor<Float, CdfCloud<Float> >,
+		CdfCloud<Float>,
+		3 /* dim */
+	> my_kd_tree_t;
+
+	PhotonCloud<Float> cloud;
+	CdfCloud<Float> cdfCloud;
+	my_kd_tree_t kdtree;
+
+	void buildCluster();
 	void shootPhotons(const Scene &scene);
 
 };
