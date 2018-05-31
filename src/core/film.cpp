@@ -248,6 +248,13 @@ void Film::WriteImage(Float splatScale) {
 	infoFile << pbrt::infoFile.str() << "\n\n";
 	infoFile.close();
 
+	// Write obj file
+	
+	std::ofstream objFile;
+	objFile.open(noext + filenameInfo.str() + ".obj");
+	objFile << pbrt::objFile.str();
+	objFile.close();
+	
 	pbrt::PbrtOptions.filenameInfo.infoFile = noext + filenameInfo.str() + ".info";
 }
 

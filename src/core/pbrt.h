@@ -195,6 +195,7 @@ struct Options {
     Float cropWindow[2][2];
 };
 
+extern std::stringstream objFile;
 extern std::stringstream infoFile;
 extern Options PbrtOptions;
 class TextureParams;

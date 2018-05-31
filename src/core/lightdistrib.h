@@ -44,6 +44,7 @@
 #include <nanoflann.hpp>
 #include <dkm.hpp>
 
+#include <mutex>
 using namespace nanoflann;
 
 namespace pbrt {

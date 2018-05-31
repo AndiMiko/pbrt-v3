@@ -44,6 +44,8 @@
 #include <math.h>
 #include <fenv.h>
 
+
+
 using namespace nanoflann;
 
 namespace pbrt {
@@ -644,7 +646,7 @@ PhotonBasedKdTreeLightDistribution::PhotonBasedKdTreeLightDistribution(const Par
 }
 
 void PhotonBasedKdTreeLightDistribution::shootPhotons(const Scene &scene) {
-
+	std::mutex m_screen;
 	ParallelFor([&](int photonIndex) {
 		// Follow photon path for _photonIndex_
 		uint64_t haltonIndex = photonIndex;
@@ -690,6 +692,10 @@ void PhotonBasedKdTreeLightDistribution::shootPhotons(const Scene &scene) {
 			cloud.pts[photonIndex].beta = fbeta;
 			cloud.pts[photonIndex].lightNum = lightNum;
 			cloud.pts[photonIndex].fromDir = -Normalize(photonRay.d);
+			m_screen.lock();
+			pbrt::objFile << "v " << isect.p.x << " " << isect.p.y << " " << isect.p.z << "\n";
+			pbrt::objFile << "v " << photonRay.o.x << " " << photonRay.o.y << " " << photonRay.o.z << "\nl -1 -2 \n";
+			m_screen.unlock();
 		} else {
 			cloud.pts[photonIndex].x = FLT_MAX;
 			cloud.pts[photonIndex].y = FLT_MAX;

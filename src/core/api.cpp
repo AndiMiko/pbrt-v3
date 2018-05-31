@@ -123,6 +123,7 @@ namespace pbrt {
 // API Global Variables
 Options PbrtOptions;
 std::stringstream infoFile;
+std::stringstream objFile;
 
 // API Local Classes
 PBRT_CONSTEXPR int MaxTransforms = 2;
