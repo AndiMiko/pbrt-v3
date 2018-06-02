@@ -68,7 +68,7 @@ struct Distribution1D {
             for (int i = 1; i < n + 1; ++i) cdf[i] /= funcInt;
         }
     }
-    int Count() const { return (int)func.size(); }
+    virtual int Count() const { return (int)func.size(); }
 	virtual Float SampleContinuous(Float u, Float *pdf, int *off = nullptr) const {
         // Find surrounding CDF segments and _offset_
         int offset = FindInterval((int)cdf.size(),
@@ -86,29 +86,29 @@ struct Distribution1D {
         if (pdf) *pdf = (funcInt > 0) ? func[offset] / funcInt : 0;
 
         // Return $x\in{}[0,1)$ corresponding to sample
-        return (offset + du) / Count();
+        return (offset + du) / Distribution1D::Count();
     }
 	virtual int SampleDiscrete(Float u, Float *pdf = nullptr,
                        Float *uRemapped = nullptr) const {
         // Find surrounding CDF segments and _offset_
         int offset = FindInterval((int)cdf.size(),
                                   [&](int index) { return cdf[index] <= u; });
-        if (pdf) *pdf = (funcInt > 0) ? func[offset] / (funcInt * Count()) : 0;
+        if (pdf) *pdf = (funcInt > 0) ? func[offset] / (funcInt * Distribution1D::Count()) : 0;
         if (uRemapped)
             *uRemapped = (u - cdf[offset]) / (cdf[offset + 1] - cdf[offset]);
         if (uRemapped) CHECK(*uRemapped >= 0.f && *uRemapped <= 1.f);
         return offset;
     }
 	virtual Float DiscretePDF(int index) const {
-        CHECK(index >= 0 && index < Count());
-        return func[index] / (funcInt * Count());
+        CHECK(index >= 0 && index < Distribution1D::Count());
+        return func[index] / (funcInt * Distribution1D::Count());
     }
 
 	virtual std::string ToString() const {
 		std::stringstream ss;
 		ss << "distr: ";
 		for (int i = 0; i < func.size(); ++i) {
-			ss << "sample " << i << " ~ " << (func[i] / (funcInt * Count()) * 100) << "%, ";
+			ss << "sample " << i << " ~ " << (func[i] / (funcInt * Distribution1D::Count()) * 100) << "%, ";
 		}
 		return ss.str();
 	}
@@ -137,7 +137,7 @@ struct InterpolatedDistribution1D : Distribution1D {
 		CHECK(n > 0);
 	}
 
-	int Count() const { return (int)distributions[0]->Count(); }
+	int Count() const { return (int)distributions[0]->Count(); } // this is wrong: only the first count? which count do we want to give?
 
 	int SampleDiscrete(Float u, Float *pdf = nullptr, Float *uRemapped = nullptr) const {
 		// offset is the sampled distribution within which we further want to sample
@@ -157,7 +157,6 @@ struct InterpolatedDistribution1D : Distribution1D {
 	}
 
 	Float DiscretePDF(int index) const {
-		CHECK(index >= 0 && index < Count());
 		Float pdf = 0;
 		for (int i = 0; i < func.size(); ++i) {
 			pdf += distributions[i]->DiscretePDF(index) * (cdf[i + 1] - cdf[i]);
