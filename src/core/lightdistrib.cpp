@@ -773,8 +773,7 @@ PhotonBasedCdfKdTreeLightDistribution::PhotonBasedCdfKdTreeLightDistribution(con
 	kdtree(3 /*dim*/, cdfCloud, KDTreeSingleIndexAdaptorParams(10 /* max leaf */)),
 	photonCount(params.FindOneInt("photonCount", 100000)),
 	minContributionScale(params.FindOneFloat("minContributionScale", 0.001)),
-	nearestNeighbours(params.FindOneInt("nearestNeighbours", 50)),
-	photonRadius(params.FindOneFloat("photonRadius", 0.1)),
+	knCdf(params.FindOneInt("knCdf", 50)),
 	knn(params.FindOneBool("knn", true)),
 	cdfCount(params.FindOneInt("cdfCount", 50))
 {
@@ -782,8 +781,6 @@ PhotonBasedCdfKdTreeLightDistribution::PhotonBasedCdfKdTreeLightDistribution(con
 	pbrt::PbrtOptions.filenameInfo.photonCount = &photonCount;
 	pbrt::PbrtOptions.filenameInfo.minContributionScale = &minContributionScale;
 	pbrt::PbrtOptions.filenameInfo.knn = &knn;
-	pbrt::PbrtOptions.filenameInfo.nearestNeighbours = &nearestNeighbours;
-	pbrt::PbrtOptions.filenameInfo.photonRadius = &photonRadius;
 
 
 
@@ -797,7 +794,7 @@ PhotonBasedCdfKdTreeLightDistribution::PhotonBasedCdfKdTreeLightDistribution(con
 
 void PhotonBasedCdfKdTreeLightDistribution::buildCluster() {
 	std::vector<std::array<Float, 3>> data;
-	data.resize(photonCount);
+	data.reserve(photonCount);
 	for (const auto& photon : cloud.pts) {
 		data.push_back({ photon.x, photon.y, photon.z });
 	}
@@ -820,6 +817,8 @@ void PhotonBasedCdfKdTreeLightDistribution::buildCluster() {
 		cdfCloud.pts[i].x = mean[0];
 		cdfCloud.pts[i].y = mean[1];
 		cdfCloud.pts[i].z = mean[2];
+		pbrt::objFile << "v " << mean[0] << " " << mean[1] << " " << mean[2] << "\n";
+		pbrt::objFile << "v " << mean[0] - 0.1f << " " << mean[1] << " " << mean[2] << "\nl -1 -2 \n";
 		cdfCloud.pts[i].distr = SparseDistribution1D::createSparseDistribution1D(lightContributions[i], minContributionScale, scene.lights.size(), false);
 	}
 }
@@ -893,7 +892,7 @@ const Distribution1D *PhotonBasedCdfKdTreeLightDistribution::Lookup(const Point3
 	std::unordered_map<int, Float> lightContrib;
 	if (knn) {
 		// perform a k-nearest-neighbour search to find #nearestNeighbours
-		size_t num_results = nearestNeighbours;
+		size_t num_results = knCdf;
 		std::vector<size_t> ret_index(num_results);
 		std::vector<Float> out_dist_sqr(num_results);
 
@@ -902,15 +901,12 @@ const Distribution1D *PhotonBasedCdfKdTreeLightDistribution::Lookup(const Point3
 		out_dist_sqr.resize(num_results);
 
 		for (size_t i = 0; i < num_results; i++) {
-			// count photon only if it came from the positive hemisphere of the intersection point
-			if (Dot(cloud.pts[ret_index[i]].fromDir, Normalize(n)) >= 0) {
-				int lightNum = cloud.pts[ret_index[i]].lightNum;
-				float beta = cloud.pts[ret_index[i]].beta;
-				lightContrib[lightNum] += beta;
-			}
+			Distribution1D* distr = cdfCloud.pts[ret_index[i]].distr;
+			return distr;
 		}
 	}
 	else {
+		/*
 		// perform a search within searchradius photonRadius
 		std::vector<std::pair<size_t, Float>> ret_matches;
 		nanoflann::SearchParams params;
@@ -924,7 +920,7 @@ const Distribution1D *PhotonBasedCdfKdTreeLightDistribution::Lookup(const Point3
 				float beta = cloud.pts[ret_matches[i].first].beta;
 				lightContrib[lightNum] += beta;
 			}
-		}
+		}*/
 	}
 	/*
 	// We don't want to leave any lights with a zero probability; it's

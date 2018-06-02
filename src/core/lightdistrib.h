@@ -283,8 +283,7 @@ private:
 	const int photonCount;
 	const int cdfCount;
 	const float minContributionScale;
-	const float photonRadius;
-	const float nearestNeighbours;
+	const float knCdf;
 	const bool knn;
 
 	typedef KDTreeSingleIndexAdaptor<
