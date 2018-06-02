@@ -185,6 +185,10 @@ struct Options {
 		const float* minContributionScale = nullptr;
 		const float* nearestNeighbours = nullptr;
 		const float* photonRadius = nullptr;
+		const int* knCdf = nullptr;
+		const int* cdfCount = nullptr;
+		const bool* interpolateCdf = nullptr;
+
 		float renderTime;
 
 		std::string infoFile;

@@ -218,6 +218,8 @@ void Film::WriteImage(Float splatScale) {
 		filenameInfo << "_pvox";
 	} else if (pbrt::PbrtOptions.filenameInfo.lightSampleStrategy == "photontree") {
 		filenameInfo << "_ptree";
+	} else if (pbrt::PbrtOptions.filenameInfo.lightSampleStrategy == "cdftree") {
+		filenameInfo << "_ctree";
 	} else {
 		filenameInfo << "_UNKN";
 	}
@@ -225,10 +227,13 @@ void Film::WriteImage(Float splatScale) {
 	filenameInfo << "_ps" << pbrt::PbrtOptions.filenameInfo.pixelSamples;
 	filenameInfo << "_t" << (int)(pbrt::PbrtOptions.filenameInfo.renderTime);
 	if (pbrt::PbrtOptions.filenameInfo.knn) filenameInfo << "_knn-" << *pbrt::PbrtOptions.filenameInfo.knn;
+	if (pbrt::PbrtOptions.filenameInfo.interpolateCdf) filenameInfo << "_icdf-" << *pbrt::PbrtOptions.filenameInfo.interpolateCdf;
 	if (pbrt::PbrtOptions.filenameInfo.photonCount) filenameInfo << "_pc" << (*pbrt::PbrtOptions.filenameInfo.photonCount / 1000) << "k";
-	if (pbrt::PbrtOptions.filenameInfo.minContributionScale) filenameInfo << "_mc" << *pbrt::PbrtOptions.filenameInfo.minContributionScale;
 	if (pbrt::PbrtOptions.filenameInfo.nearestNeighbours && *pbrt::PbrtOptions.filenameInfo.knn) filenameInfo << "_nn" << *pbrt::PbrtOptions.filenameInfo.nearestNeighbours;
 	if (pbrt::PbrtOptions.filenameInfo.photonRadius && !*pbrt::PbrtOptions.filenameInfo.knn) filenameInfo << "_pr" << *pbrt::PbrtOptions.filenameInfo.photonRadius;
+	if (pbrt::PbrtOptions.filenameInfo.knCdf) filenameInfo << "_knc-" << *pbrt::PbrtOptions.filenameInfo.knCdf;
+	if (pbrt::PbrtOptions.filenameInfo.cdfCount) filenameInfo << "_cdfc-" << *pbrt::PbrtOptions.filenameInfo.cdfCount;
+	if (pbrt::PbrtOptions.filenameInfo.minContributionScale) filenameInfo << "_mc" << *pbrt::PbrtOptions.filenameInfo.minContributionScale;
 
 	filenameInfo << "_" << (std::time(0) % 100000);
 	size_t lastindex = filename.find_last_of(".");

@@ -416,8 +416,13 @@ PhotonBasedVoxelLightDistribution::PhotonBasedVoxelLightDistribution(const Param
 	scene(scene), 
 	photonCount(params.FindOneInt("photonCount", 100000)), 
 	maxVoxels(params.FindOneInt("maxVoxels", 64)),
+	minContributionScale(params.FindOneFloat("minContributionScale", 0.001)),
 	interpolateCdf(params.FindOneBool("interpolateCdf", true)) {
 	ProfilePhase _(Prof::LightDistribCreation);
+
+	pbrt::PbrtOptions.filenameInfo.photonCount = &photonCount;
+	pbrt::PbrtOptions.filenameInfo.interpolateCdf = &interpolateCdf;
+	pbrt::PbrtOptions.filenameInfo.minContributionScale = &minContributionScale;
 
 	powerDistrib = ComputeLightPowerDistribution(scene);
 	initVoxelHashTable();
@@ -773,15 +778,16 @@ PhotonBasedCdfKdTreeLightDistribution::PhotonBasedCdfKdTreeLightDistribution(con
 	kdtree(3 /*dim*/, cdfCloud, KDTreeSingleIndexAdaptorParams(10 /* max leaf */)),
 	photonCount(params.FindOneInt("photonCount", 100000)),
 	minContributionScale(params.FindOneFloat("minContributionScale", 0.001)),
-	knCdf(params.FindOneInt("knCdf", 50)),
+	knCdf(params.FindOneInt("knCdf", 16)),
 	knn(params.FindOneBool("knn", true)),
-	cdfCount(params.FindOneInt("cdfCount", 50))
+	cdfCount(params.FindOneInt("cdfCount", 264))
 {
 	ProfilePhase _(Prof::LightDistribCreation);
 	pbrt::PbrtOptions.filenameInfo.photonCount = &photonCount;
 	pbrt::PbrtOptions.filenameInfo.minContributionScale = &minContributionScale;
 	pbrt::PbrtOptions.filenameInfo.knn = &knn;
-
+	pbrt::PbrtOptions.filenameInfo.cdfCount = &cdfCount;
+	pbrt::PbrtOptions.filenameInfo.knCdf = &knCdf;
 
 
 	powerDistrib = ComputeLightPowerDistribution(scene);
@@ -796,7 +802,8 @@ void PhotonBasedCdfKdTreeLightDistribution::buildCluster() {
 	std::vector<std::array<Float, 3>> data;
 	data.reserve(photonCount);
 	for (const auto& photon : cloud.pts) {
-		data.push_back({ photon.x, photon.y, photon.z });
+		if (photon.lightNum != -1)
+			data.push_back({ photon.x, photon.y, photon.z });
 	}
 
 	auto cluster_data = dkm::kmeans_lloyd(data, cdfCount);
@@ -818,7 +825,7 @@ void PhotonBasedCdfKdTreeLightDistribution::buildCluster() {
 		cdfCloud.pts[i].y = mean[1];
 		cdfCloud.pts[i].z = mean[2];
 		pbrt::objFile << "v " << mean[0] << " " << mean[1] << " " << mean[2] << "\n";
-		pbrt::objFile << "v " << mean[0] - 0.1f << " " << mean[1] << " " << mean[2] << "\nl -1 -2 \n";
+		pbrt::objFile << "v " << mean[0] - 1.5f << " " << mean[1] << " " << mean[2] << "\nl -1 -2 \n";
 		cdfCloud.pts[i].distr = SparseDistribution1D::createSparseDistribution1D(lightContributions[i], minContributionScale, scene.lights.size(), false);
 	}
 }
@@ -900,10 +907,15 @@ const Distribution1D *PhotonBasedCdfKdTreeLightDistribution::Lookup(const Point3
 		ret_index.resize(num_results);
 		out_dist_sqr.resize(num_results);
 
+		std::vector<const Distribution1D*> distributions;
+		std::vector<Float> influence;
 		for (size_t i = 0; i < num_results; i++) {
-			Distribution1D* distr = cdfCloud.pts[ret_index[i]].distr;
-			return distr;
+			distributions.push_back(cdfCloud.pts[ret_index[i]].distr);
+			influence.push_back(1.0f / out_dist_sqr[i]);
 		}
+		InterpolatedDistribution1D* iDistr = new InterpolatedDistribution1D(&influence[0], &distributions[0], influence.size());
+		iDistr->deleteAfterUsage = true;
+		return iDistr;
 	}
 	else {
 		/*

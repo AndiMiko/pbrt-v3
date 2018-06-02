@@ -145,6 +145,7 @@ private:
 	const int photonCount;
 	const int maxVoxels;
 	const bool interpolateCdf;
+	const float minContributionScale;
 
 	int nVoxels[3];
 	struct HashEntry {
@@ -283,7 +284,7 @@ private:
 	const int photonCount;
 	const int cdfCount;
 	const float minContributionScale;
-	const float knCdf;
+	const int knCdf;
 	const bool knn;
 
 	typedef KDTreeSingleIndexAdaptor<
