@@ -571,9 +571,8 @@ void PhotonBasedVoxelLightDistribution::shootPhotons(const Scene &scene) {
 					// and we try to claim this hashentry for this packedPos
 					std::vector<std::atomic<Float>>* lightContrib = entry.lightContrib.get();
 					ReportValue(nProbesPerLookup, nProbes);
-					//TODO: make this threadsafe!?
-					(*lightContrib)[lightNum].store(fbeta + (*lightContrib)[lightNum].load());
-					//LOG(INFO) << "Photon: " << photonIndex << " from lightnr: " << lightNum << " contributed to hash " << hash << " with beta " << fbeta;
+					Float expected = (*lightContrib)[lightNum].load();
+					while (!std::atomic_compare_exchange_weak(&(*lightContrib)[lightNum], &expected, expected + fbeta));
 					break;
 				} else {
 					// The hash table entry we're checking has already been
