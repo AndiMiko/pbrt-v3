@@ -251,6 +251,14 @@ class CoefficientSpectrum {
             m = std::max(m, c[i]);
         return m;
     }
+
+	Float sumValues() const {
+        Float m = c[0];
+        for (int i = 1; i < nSpectrumSamples; ++i) 
+			m += c[i];
+        return m;
+    }
+
     bool HasNaNs() const {
         for (int i = 0; i < nSpectrumSamples; ++i)
             if (std::isnan(c[i])) return true;

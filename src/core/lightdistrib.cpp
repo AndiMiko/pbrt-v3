@@ -490,9 +490,7 @@ void PhotonBasedVoxelLightDistribution::initVoxelHashTable() {
 
 void PhotonBasedVoxelLightDistribution::shootPhotons(const Scene &scene) {
 
-	//std::vector<MemoryArena> photonShootArenas(MaxThreadIndex());
 	ParallelFor([&](int photonIndex) {
-		// MemoryArena &arena = photonShootArenas[ThreadIndex];
 		// Follow photon path for _photonIndex_
 		uint64_t haltonIndex = photonIndex;
 		int haltonDim = 0;
@@ -523,15 +521,11 @@ void PhotonBasedVoxelLightDistribution::shootPhotons(const Scene &scene) {
 		Spectrum beta = (AbsDot(nLight, photonRay.d) * Le) /
 			(lightPdf * pdfPos * pdfDir);
 		if (beta.IsBlack()) return;
-		// TODO: is this correct? can we assume all beta's are the same?
-		Float fbeta = beta.MaxComponentValue();
+        Float fbeta = beta.sumValues();
 
 		// Follow photon through scene and record intersection
 		SurfaceInteraction isect;
 		if (scene.Intersect(photonRay, &isect)) {
-			// Add photon to kd-tree if intersection found and is difuse
-			// TODO: difuse
-
 			// First, compute integer voxel coordinates for the given point |p|
 			// with respect to the overall voxel grid.
 			Vector3f offset = scene.WorldBound().Offset(isect.p);  // offset in [0,1].
@@ -683,8 +677,7 @@ void PhotonBasedKdTreeLightDistribution::shootPhotons(const Scene &scene) {
 		Spectrum beta = (AbsDot(nLight, photonRay.d) * Le) /
 			(lightPdf * pdfPos * pdfDir);
 		if (beta.IsBlack()) return;
-		// TODO: is this correct? can we assume all beta's are the same?
-		Float fbeta = beta.MaxComponentValue();
+		Float fbeta = beta.sumValues();
 
 		// Follow photon through scene and record intersection
 		SurfaceInteraction isect;
@@ -863,8 +856,7 @@ void PhotonBasedCdfKdTreeLightDistribution::shootPhotons(const Scene &scene) {
 		Spectrum beta = (AbsDot(nLight, photonRay.d) * Le) /
 			(lightPdf * pdfPos * pdfDir);
 		if (beta.IsBlack()) return;
-		// TODO: is this correct? can we assume all beta's are the same?
-		Float fbeta = beta.MaxComponentValue();
+		Float fbeta = beta.sumValues();
 
 		// Follow photon through scene and record intersection
 		SurfaceInteraction isect;
