@@ -479,8 +479,7 @@ void PhotonBasedVoxelLightDistribution::initVoxelHashTable() {
 	hashTable.reset(new HashEntry[hashTableSize]);
 	for (int i = 0; i < hashTableSize; ++i) {
 		hashTable[i].packedPos.store(invalidPackedPos);
-		hashTable[i].lightContrib.reset(
-			new std::vector<std::atomic<Float>>(scene.lights.size()));
+		hashTable[i].lightContrib.reset(new std::unordered_map<int, Float>());
 	}
 
 	LOG(INFO) << "PhotonBasedVoxelLightDistribution: scene bounds " << b <<
@@ -489,7 +488,7 @@ void PhotonBasedVoxelLightDistribution::initVoxelHashTable() {
 }
 
 void PhotonBasedVoxelLightDistribution::shootPhotons(const Scene &scene) {
-
+	std::mutex m_screen;
 	ParallelFor([&](int photonIndex) {
 		// Follow photon path for _photonIndex_
 		uint64_t haltonIndex = photonIndex;
@@ -569,10 +568,11 @@ void PhotonBasedVoxelLightDistribution::shootPhotons(const Scene &scene) {
 				if (entryPackedPos == packedPos || entry.packedPos.compare_exchange_weak(invalid, packedPos)) {
 					// Hash entry is already associated to the packedPos OR hashentrypos is invalid
 					// and we try to claim this hashentry for this packedPos
-					std::vector<std::atomic<Float>>* lightContrib = entry.lightContrib.get();
+					std::unordered_map<int, Float>* lightContrib = entry.lightContrib.get();
 					ReportValue(nProbesPerLookup, nProbes);
-					Float expected = (*lightContrib)[lightNum].load();
-					while (!std::atomic_compare_exchange_weak(&(*lightContrib)[lightNum], &expected, expected + fbeta));
+					m_screen.lock();
+					(*lightContrib)[lightNum] += fbeta;
+					m_screen.unlock();
 					break;
 				} else {
 					// The hash table entry we're checking has already been
@@ -586,36 +586,13 @@ void PhotonBasedVoxelLightDistribution::shootPhotons(const Scene &scene) {
 			}
 
 		}
-		//arena.Reset();
 	}, photonCount, 4096);
 
-	for (int i = 0; i < hashTableSize; ++i) {
-		std::vector<std::atomic<Float>> *lightContrib = hashTable[i].lightContrib.get();
-		std::vector<Float> lightContribF(scene.lights.size(), Float(0));
-		for (size_t j = 0; j < lightContrib->size(); ++j) {
-			lightContribF[j] = (*lightContrib)[j].load();
-		}
-		// We don't want to leave any lights with a zero probability; it's
-		// possible that a light contributes to points in the voxel even though
-		// we didn't find such a point when sampling above.  Therefore, compute
-		// a minimum (small) weight and ensure that all lights are given at
-		// least the corresponding probability.
-		Float sumContrib =
-			std::accumulate(lightContribF.begin(), lightContribF.end(), Float(0));
-		Float avgContrib = sumContrib / lightContrib->size();
-		Float minContrib = (avgContrib > 0) ? .001 * avgContrib : 1;
-		for (size_t j = 0; j < lightContrib->size(); ++j) {
-			VLOG(2) << "hashtable = " << i << ", light " << j << " contrib = "
-				<< lightContribF[i];
-			lightContribF[j] = std::max(lightContribF[j], minContrib);
-		}
-		//
-		//	", avgContrib = " << avgContrib;
-
-		hashTable[i].distribution = new Distribution1D(&lightContribF[0], int(lightContribF.size()));
-		LOG_FIRST_N(INFO, 1000) << "Initialized light distribution in voxel pi= " << i << " " << hashTable[i].distribution->ToString();
-	}
-
+	ParallelFor([&](int i) {
+		std::unordered_map<int, Float> *lightContrib = hashTable[i].lightContrib.get();
+		hashTable[i].distribution = SparseDistribution1D::createSparseDistribution1D(*lightContrib, minContributionScale, scene.lights.size(), false);
+		//LOG_FIRST_N(INFO, 1000) << "Initialized light distribution in voxel pi= " << i << " " << hashTable[i].distribution->ToString();
+	}, hashTableSize, 4096);
 }
 
 PhotonBasedKdTreeLightDistribution::PhotonBasedKdTreeLightDistribution(const ParamSet &params, const Scene &scene) :

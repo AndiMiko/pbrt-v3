@@ -150,7 +150,7 @@ private:
 	int nVoxels[3];
 	struct HashEntry {
 		std::atomic<uint64_t> packedPos;
-		std::unique_ptr<std::vector<std::atomic<Float>>> lightContrib;
+		std::unique_ptr<std::unordered_map<int, Float>> lightContrib;
 		Distribution1D *distribution;
 	};
 	mutable std::unique_ptr<HashEntry[]> hashTable;

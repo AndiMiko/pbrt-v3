@@ -180,7 +180,7 @@ struct SparseDistribution1D : Distribution1D {
 		std::vector<int> sampleMap;
 		std::vector<Float> contrib;
 		int i = 0;
-		for (auto kv : contribMap) {
+		for (const auto& kv : contribMap) {
 			sampleMap.push_back(kv.first);
 			contrib.push_back(kv.second);
 			backMap[kv.first] = i++;
