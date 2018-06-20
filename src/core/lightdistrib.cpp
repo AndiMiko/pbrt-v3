@@ -456,7 +456,7 @@ const Distribution1D *PhotonBasedVoxelLightDistribution::Lookup(const Point3f &p
 		distr = getDistribution(packedPos, hash, &nProbes);	
 	}
 
-	ReportValue(nProbesPerLookup, nProbes);
+	//ReportValue(nProbesPerLookup, nProbes);
 	return distr;
 }
 
@@ -477,10 +477,10 @@ void PhotonBasedVoxelLightDistribution::initVoxelHashTable() {
 
 	hashTableSize = 4 * nVoxels[0] * nVoxels[1] * nVoxels[2];
 	hashTable.reset(new HashEntry[hashTableSize]);
-	for (int i = 0; i < hashTableSize; ++i) {
+	ParallelFor([&](int i) {
 		hashTable[i].packedPos.store(invalidPackedPos);
 		hashTable[i].lightContrib.reset(new std::unordered_map<int, Float>());
-	}
+	}, hashTableSize, 4096);
 
 	LOG(INFO) << "PhotonBasedVoxelLightDistribution: scene bounds " << b <<
 		", voxel res (" << nVoxels[0] << ", " << nVoxels[1] << ", " <<
@@ -569,7 +569,7 @@ void PhotonBasedVoxelLightDistribution::shootPhotons(const Scene &scene) {
 					// Hash entry is already associated to the packedPos OR hashentrypos is invalid
 					// and we try to claim this hashentry for this packedPos
 					std::unordered_map<int, Float>* lightContrib = entry.lightContrib.get();
-					ReportValue(nProbesPerLookup, nProbes);
+					//ReportValue(nProbesPerLookup, nProbes);
 					m_screen.lock();
 					(*lightContrib)[lightNum] += fbeta;
 					m_screen.unlock();
