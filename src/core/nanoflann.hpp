@@ -1362,6 +1362,22 @@ namespace nanoflann
                         return true;
 		}
 
+		void collectAllLeafs(std::vector<std::vector<IndexType>>& result_set, const NodePtr node) const
+		{
+			/* If this is a leaf node, then do check and return. */
+			if ((node->child1 == NULL) && (node->child2 == NULL)) {
+				//count_leaf += (node->lr.right-node->lr.left);  // Removed since was neither used nor returned to the user.
+				std::vector<IndexType> leafNodes;
+				for (IndexType i = node->node_type.lr.left; i<node->node_type.lr.right; ++i) {
+					leafNodes.push_back(BaseClassRef::vind[i]);
+				}
+				result_set.push_back(leafNodes);
+				return;
+			}
+			collectAllLeafs(result_set, node->child1);
+			collectAllLeafs(result_set, node->child2);
+		}
+
 	public:
 		/**  Stores the index in a binary file.
 		  *   IMPORTANT NOTE: The set of data points is NOT stored in the file, so when loading the index object it must be constructed associated to the same source of data points used while building it.
