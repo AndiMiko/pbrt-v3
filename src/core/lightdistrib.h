@@ -141,7 +141,7 @@ private:
 	const Distribution1D *getInterpolatedDistribution(const Point3f &p, uint64_t packedPos, uint64_t hash, Point3i* voxelId, int* nProbes) const;
 
 	const Scene &scene;
-	std::unique_ptr<Distribution1D> powerDistrib;
+	std::unique_ptr<Distribution1D> photonDistrib;
 	const int photonCount;
 	const int maxVoxels;
 	const bool interpolateCdf;
@@ -197,7 +197,7 @@ public:
 
 private:
 	const Scene &scene;
-	std::unique_ptr<Distribution1D> powerDistrib;
+	std::unique_ptr<Distribution1D> photonDistrib;
 	const int photonCount;
 	const float minContributionScale;
 	const float photonRadius;
@@ -280,7 +280,7 @@ public:
 
 private:
 	const Scene &scene;
-	std::unique_ptr<Distribution1D> powerDistrib;
+	std::unique_ptr<Distribution1D> photonDistrib;
 	const int photonCount;
 	const int cdfCount;
 	const float minContributionScale;
@@ -364,8 +364,7 @@ public:
 
 private:
 	const Scene &scene;
-	std::unique_ptr<Distribution1D> powerDistrib;
-	std::unique_ptr<Distribution1D> uniDistrib;
+	std::unique_ptr<Distribution1D> photonDistrib;
 	const int photonCount;
 	const int cdfCount;
 	const float minContributionScale;

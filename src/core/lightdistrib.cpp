@@ -364,7 +364,7 @@ const Distribution1D *PhotonBasedVoxelLightDistribution::getDistribution(uint64_
 		else if (entryPackedPos == invalidPackedPos) {
 			// no photon arrived on this hash, use powerdistribution instead
 			//LOG(INFO) << "PhotonBasedVoxelLightDistribution: Using powerdistribution, no photons arrived: " << packedPos;
-			return powerDistrib.get();
+			return photonDistrib.get();
 		}
 		else {
 			// The hash table entry we're checking has already been
@@ -427,7 +427,14 @@ PhotonBasedVoxelLightDistribution::PhotonBasedVoxelLightDistribution(const Param
 	pbrt::PbrtOptions.filenameInfo.interpolateCdf = &interpolateCdf;
 	pbrt::PbrtOptions.filenameInfo.minContributionScale = &minContributionScale;
 
-	powerDistrib = ComputeLightPowerDistribution(scene);
+	if (params.FindOneString("photonsampling", "uni") == "uni") {
+		std::vector<Float> prob(scene.lights.size(), Float(1));
+		photonDistrib.reset(new Distribution1D(&prob[0], int(prob.size())));
+	}
+	else {
+		photonDistrib = ComputeLightPowerDistribution(scene);
+	}
+
 	initVoxelHashTable();
 	shootPhotons(scene);
 }
@@ -500,7 +507,7 @@ void PhotonBasedVoxelLightDistribution::shootPhotons(const Scene &scene) {
 		// Choose light to shoot photon from
 		Float lightPdf;
 		Float lightSample = RadicalInverse(haltonDim++, haltonIndex);
-		int lightNum = powerDistrib->SampleDiscrete(lightSample, &lightPdf);
+		int lightNum = photonDistrib->SampleDiscrete(lightSample, &lightPdf);
 		const std::shared_ptr<Light> &light = scene.lights[lightNum];
 
 		// Compute sample values for photon ray leaving light source
@@ -614,9 +621,13 @@ PhotonBasedKdTreeLightDistribution::PhotonBasedKdTreeLightDistribution(const Par
 	pbrt::PbrtOptions.filenameInfo.nearestNeighbours = &nearestNeighbours;
 	pbrt::PbrtOptions.filenameInfo.photonRadius = &photonRadius;
 	
-	
-
-	powerDistrib = ComputeLightPowerDistribution(scene);
+	if (params.FindOneString("photonsampling", "uni") == "uni") {
+		std::vector<Float> prob(scene.lights.size(), Float(1));
+		photonDistrib.reset(new Distribution1D(&prob[0], int(prob.size())));
+	}
+	else {
+		photonDistrib = ComputeLightPowerDistribution(scene);
+	}
 
 	cloud.pts.resize(photonCount);
 	shootPhotons(scene);
@@ -633,7 +644,7 @@ void PhotonBasedKdTreeLightDistribution::shootPhotons(const Scene &scene) {
 		// Choose light to shoot photon from
 		Float lightPdf;
 		Float lightSample = RadicalInverse(haltonDim++, haltonIndex);
-		int lightNum = powerDistrib->SampleDiscrete(lightSample, &lightPdf);
+		int lightNum = photonDistrib->SampleDiscrete(lightSample, &lightPdf);
 		const std::shared_ptr<Light> &light = scene.lights[lightNum];
 
 		// Compute sample values for photon ray leaving light source
@@ -759,7 +770,13 @@ PhotonBasedMlCdfKdTreeLightDistribution::PhotonBasedMlCdfKdTreeLightDistribution
 	pbrt::PbrtOptions.filenameInfo.knCdf = &knCdf;
 
 
-	powerDistrib = ComputeLightPowerDistribution(scene);
+	if (params.FindOneString("photonsampling", "uni") == "uni") {
+		std::vector<Float> prob(scene.lights.size(), Float(1));
+		photonDistrib.reset(new Distribution1D(&prob[0], int(prob.size())));
+	}
+	else {
+		photonDistrib = ComputeLightPowerDistribution(scene);
+	}
 
 	cloud.pts.resize(photonCount);
 	shootPhotons(scene);
@@ -809,7 +826,7 @@ void PhotonBasedMlCdfKdTreeLightDistribution::shootPhotons(const Scene &scene) {
 		// Choose light to shoot photon from
 		Float lightPdf;
 		Float lightSample = RadicalInverse(haltonDim++, haltonIndex);
-		int lightNum = powerDistrib->SampleDiscrete(lightSample, &lightPdf);
+		int lightNum = photonDistrib->SampleDiscrete(lightSample, &lightPdf);
 		const std::shared_ptr<Light> &light = scene.lights[lightNum];
 
 		// Compute sample values for photon ray leaving light source
@@ -938,10 +955,12 @@ PhotonBasedCdfKdTreeLightDistribution::PhotonBasedCdfKdTreeLightDistribution(con
 	pbrt::PbrtOptions.filenameInfo.cdfCount = &cdfCount;
 	pbrt::PbrtOptions.filenameInfo.knCdf = &knCdf;
 
-
-	powerDistrib = ComputeLightPowerDistribution(scene);
-	std::vector<Float> prob(scene.lights.size(), Float(1));
-	uniDistrib.reset(new Distribution1D(&prob[0], int(prob.size())));
+	if (params.FindOneString("photonsampling", "uni") == "uni") {
+		std::vector<Float> prob(scene.lights.size(), Float(1));
+		photonDistrib.reset(new Distribution1D(&prob[0], int(prob.size())));
+	} else {
+		photonDistrib = ComputeLightPowerDistribution(scene);
+	}
 
 	cloud.pts.resize(photonCount);
 	shootPhotons(scene);
@@ -995,7 +1014,7 @@ void PhotonBasedCdfKdTreeLightDistribution::shootPhotons(const Scene &scene) {
 		// Choose light to shoot photon from
 		Float lightPdf;
 		Float lightSample = RadicalInverse(haltonDim++, haltonIndex);
-		int lightNum = uniDistrib->SampleDiscrete(lightSample, &lightPdf);
+		int lightNum = photonDistrib->SampleDiscrete(lightSample, &lightPdf);
 		const std::shared_ptr<Light> &light = scene.lights[lightNum];
 
 		// Compute sample values for photon ray leaving light source
@@ -1105,7 +1124,7 @@ const Distribution1D *PhotonBasedCdfKdTreeLightDistribution::Lookup(const Point3
 	//Distribution1D* distr = new Distribution1D(&lightContrib[0], int(lightContrib.size()));
 	*/
 	//LOG_EVERY_N(INFO, 5000) << "Initialized light distribution in point p= " << p << " " << distr->ToString();
-	return powerDistrib.get();
+	return photonDistrib.get();
 }
 
 }  // namespace pbrt
