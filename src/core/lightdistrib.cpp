@@ -1100,6 +1100,12 @@ const Distribution1D *PhotonBasedCdfKdTreeLightDistribution::Lookup(const Point3
 				Float d = pow(out_dist_sqr[i], 2);
 				influence.push_back(cdfCloud.pts[ret_index[i]].weight * pow((maxR - d) / (maxR * d), 2));
 			}
+		} else if (interpolation == "shepexp") {
+			for (size_t i = 0; i < num_results; i++) {
+				distributions.push_back(cdfCloud.pts[ret_index[i]].distr);
+				Float d = pow(out_dist_sqr[i], 1);
+				influence.push_back(cdfCloud.pts[ret_index[i]].weight * exp(-pow(d / 8, 2)));
+			}
 		}
 
 		InterpolatedDistribution1D* iDistr = new InterpolatedDistribution1D(&influence[0], &distributions[0], influence.size());
