@@ -941,6 +941,7 @@ PhotonBasedCdfKdTreeLightDistribution::PhotonBasedCdfKdTreeLightDistribution(con
 	photonCount(params.FindOneInt("photonCount", 100000)),
 	cdfCount(params.FindOneInt("cdfCount", 264)),
 	interpolation(params.FindOneString("interpolation", "shepard")),
+	photonThreshold(params.FindOneInt("photonThreshold", 15)),
 	photonkdtree(3 /*dim*/, cloud, KDTreeSingleIndexAdaptorParams(photonCount / cdfCount /* max leaf */)),
 	cdfkdtree(3 /*dim*/, cdfCloud, KDTreeSingleIndexAdaptorParams(10 /* max leaf */)),
 	minContributionScale(params.FindOneFloat("minContributionScale", 0.001)),
@@ -988,7 +989,7 @@ void PhotonBasedCdfKdTreeLightDistribution::buildCluster() {
 			lightContrib[photon.lightNum] += photon.beta;
 			numPhotons++;
 		}
-		if (numPhotons > 10) {
+		if (numPhotons > photonThreshold) {
 			cdf.x /= numPhotons;
 			cdf.y /= numPhotons;
 			cdf.z /= numPhotons;
