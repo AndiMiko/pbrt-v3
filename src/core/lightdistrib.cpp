@@ -988,11 +988,12 @@ void PhotonBasedCdfKdTreeLightDistribution::buildCluster() {
 			lightContrib[photon.lightNum] += photon.beta;
 			numPhotons++;
 		}
-		if (numPhotons > 40) {
+		if (numPhotons > 10) {
 			cdf.x /= numPhotons;
 			cdf.y /= numPhotons;
 			cdf.z /= numPhotons;
 			cdf.distr = SparseDistribution1D::createSparseDistribution1D(lightContrib, minContributionScale, scene.lights.size(), false);
+			cdf.weight = numPhotons;
 			m_screen.lock();
 			pbrt::objFile << "v " << cdf.x << " " << cdf.y << " " << cdf.z << "\n";
 			pbrt::objFile << "v " << cdf.x - 1.5f << " " << cdf.y << " " << cdf.z << "\nl -1 -2 \n";
@@ -1086,7 +1087,7 @@ const Distribution1D *PhotonBasedCdfKdTreeLightDistribution::Lookup(const Point3
 			for (size_t i = 0; i < num_results; i++) {
 				distributions.push_back(cdfCloud.pts[ret_index[i]].distr);
 				Float d = pow(out_dist_sqr[i], 2);
-				influence.push_back(1.0f / d);
+				influence.push_back(cdfCloud.pts[ret_index[i]].weight * (1.0f / d));
 			}
 		} else if (interpolation == "modshep") {
 			Float maxR = 0;
@@ -1097,7 +1098,7 @@ const Distribution1D *PhotonBasedCdfKdTreeLightDistribution::Lookup(const Point3
 			for (size_t i = 0; i < num_results; i++) {
 				distributions.push_back(cdfCloud.pts[ret_index[i]].distr);
 				Float d = pow(out_dist_sqr[i], 2);
-				influence.push_back(pow((maxR - d) / (maxR * d), 2));
+				influence.push_back(cdfCloud.pts[ret_index[i]].weight * pow((maxR - d) / (maxR * d), 2));
 			}
 		}
 

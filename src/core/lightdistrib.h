@@ -343,6 +343,7 @@ public:
 		{
 			T  x = .0f, y = .0f, z = .0f;
 			Distribution1D* distr;
+			int weight = 0;
 		};
 
 		std::vector<Cdf> pts;
