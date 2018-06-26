@@ -373,6 +373,7 @@ private:
 	const bool knn;
 	const std::string interpolation;
 	const int photonThreshold;
+	const float intSmooth;
 
 	typedef KDTreeSingleIndexAdaptor<
 		L2_Simple_Adaptor<Float, PhotonCloud<Float> >,

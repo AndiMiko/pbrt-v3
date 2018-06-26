@@ -188,6 +188,9 @@ struct Options {
 		const int* knCdf = nullptr;
 		const int* cdfCount = nullptr;
 		const bool* interpolateCdf = nullptr;
+		const int* photonThreshold = nullptr;
+		const float* intSmooth = nullptr;
+		const std::string* interpolation = nullptr;
 
 		float renderTime;
 

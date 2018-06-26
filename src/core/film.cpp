@@ -226,6 +226,18 @@ void Film::WriteImage(Float splatScale) {
 	
 	filenameInfo << "_ps" << pbrt::PbrtOptions.filenameInfo.pixelSamples;
 	filenameInfo << "_t" << (int)(pbrt::PbrtOptions.filenameInfo.renderTime);
+	if (pbrt::PbrtOptions.filenameInfo.interpolation) {
+		if (*pbrt::PbrtOptions.filenameInfo.interpolation == "shepard") {
+			filenameInfo << "_shp";
+		} else if (*pbrt::PbrtOptions.filenameInfo.interpolation == "modshep") {
+			filenameInfo << "_mshp";
+		} else if (*pbrt::PbrtOptions.filenameInfo.interpolation == "shepexp") {
+			filenameInfo << "_exp";
+		} else {
+			filenameInfo << *pbrt::PbrtOptions.filenameInfo.interpolation;
+		}
+	}
+
 	if (pbrt::PbrtOptions.filenameInfo.knn) filenameInfo << "_knn-" << *pbrt::PbrtOptions.filenameInfo.knn;
 	if (pbrt::PbrtOptions.filenameInfo.interpolateCdf) filenameInfo << "_icdf-" << *pbrt::PbrtOptions.filenameInfo.interpolateCdf;
 	if (pbrt::PbrtOptions.filenameInfo.photonCount) filenameInfo << "_pc" << (*pbrt::PbrtOptions.filenameInfo.photonCount / 1000) << "k";
@@ -234,6 +246,8 @@ void Film::WriteImage(Float splatScale) {
 	if (pbrt::PbrtOptions.filenameInfo.knCdf) filenameInfo << "_knc-" << *pbrt::PbrtOptions.filenameInfo.knCdf;
 	if (pbrt::PbrtOptions.filenameInfo.cdfCount) filenameInfo << "_cdfc-" << *pbrt::PbrtOptions.filenameInfo.cdfCount;
 	if (pbrt::PbrtOptions.filenameInfo.minContributionScale) filenameInfo << "_mc" << *pbrt::PbrtOptions.filenameInfo.minContributionScale;
+	if (pbrt::PbrtOptions.filenameInfo.intSmooth) filenameInfo << "_sm" << *pbrt::PbrtOptions.filenameInfo.intSmooth;
+	if (pbrt::PbrtOptions.filenameInfo.photonThreshold) filenameInfo << "_pT" << *pbrt::PbrtOptions.filenameInfo.photonThreshold;
 
 	filenameInfo << "_" << (std::time(0) % 100000);
 	size_t lastindex = filename.find_last_of(".");
