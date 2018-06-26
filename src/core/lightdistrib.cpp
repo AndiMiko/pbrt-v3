@@ -430,8 +430,7 @@ PhotonBasedVoxelLightDistribution::PhotonBasedVoxelLightDistribution(const Param
 	if (params.FindOneString("photonsampling", "uni") == "uni") {
 		std::vector<Float> prob(scene.lights.size(), Float(1));
 		photonDistrib.reset(new Distribution1D(&prob[0], int(prob.size())));
-	}
-	else {
+	} else {
 		photonDistrib = ComputeLightPowerDistribution(scene);
 	}
 
@@ -624,8 +623,7 @@ PhotonBasedKdTreeLightDistribution::PhotonBasedKdTreeLightDistribution(const Par
 	if (params.FindOneString("photonsampling", "uni") == "uni") {
 		std::vector<Float> prob(scene.lights.size(), Float(1));
 		photonDistrib.reset(new Distribution1D(&prob[0], int(prob.size())));
-	}
-	else {
+	} else {
 		photonDistrib = ComputeLightPowerDistribution(scene);
 	}
 
@@ -942,6 +940,7 @@ PhotonBasedCdfKdTreeLightDistribution::PhotonBasedCdfKdTreeLightDistribution(con
 	scene(scene),
 	photonCount(params.FindOneInt("photonCount", 100000)),
 	cdfCount(params.FindOneInt("cdfCount", 264)),
+	interpolation(params.FindOneString("interpolation", "shepard")),
 	photonkdtree(3 /*dim*/, cloud, KDTreeSingleIndexAdaptorParams(photonCount / cdfCount /* max leaf */)),
 	cdfkdtree(3 /*dim*/, cdfCloud, KDTreeSingleIndexAdaptorParams(10 /* max leaf */)),
 	minContributionScale(params.FindOneFloat("minContributionScale", 0.001)),
@@ -989,7 +988,7 @@ void PhotonBasedCdfKdTreeLightDistribution::buildCluster() {
 			lightContrib[photon.lightNum] += photon.beta;
 			numPhotons++;
 		}
-		if (numPhotons > 10) {
+		if (numPhotons > 40) {
 			cdf.x /= numPhotons;
 			cdf.y /= numPhotons;
 			cdf.z /= numPhotons;
@@ -1082,10 +1081,26 @@ const Distribution1D *PhotonBasedCdfKdTreeLightDistribution::Lookup(const Point3
 
 		std::vector<const Distribution1D*> distributions;
 		std::vector<Float> influence;
-		for (size_t i = 0; i < num_results; i++) {
-			distributions.push_back(cdfCloud.pts[ret_index[i]].distr);
-			influence.push_back(1.0f / out_dist_sqr[i]);
+
+		if (interpolation == "shepard") {
+			for (size_t i = 0; i < num_results; i++) {
+				distributions.push_back(cdfCloud.pts[ret_index[i]].distr);
+				Float d = pow(out_dist_sqr[i], 2);
+				influence.push_back(1.0f / d);
+			}
+		} else if (interpolation == "modshep") {
+			Float maxR = 0;
+			for (size_t i = 0; i < num_results; i++) {
+				maxR = std::max(maxR, out_dist_sqr[i]);
+			}
+			maxR = pow(maxR, 2);
+			for (size_t i = 0; i < num_results; i++) {
+				distributions.push_back(cdfCloud.pts[ret_index[i]].distr);
+				Float d = pow(out_dist_sqr[i], 2);
+				influence.push_back(pow((maxR - d) / (maxR * d), 2));
+			}
 		}
+
 		InterpolatedDistribution1D* iDistr = new InterpolatedDistribution1D(&influence[0], &distributions[0], influence.size());
 		iDistr->deleteAfterUsage = true;
 		return iDistr;

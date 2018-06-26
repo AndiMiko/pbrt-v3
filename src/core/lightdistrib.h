@@ -370,6 +370,7 @@ private:
 	const float minContributionScale;
 	const int knCdf;
 	const bool knn;
+	const std::string interpolation;
 
 	typedef KDTreeSingleIndexAdaptor<
 		L2_Simple_Adaptor<Float, PhotonCloud<Float> >,
