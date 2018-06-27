@@ -600,7 +600,6 @@ void PhotonBasedVoxelLightDistribution::shootPhotons(const Scene &scene) {
 	ParallelFor([&](int i) {
 		std::unordered_map<int, Float> *lightContrib = hashTable[i].lightContrib.get();
 		hashTable[i].distribution = SparseDistribution1D::createSparseDistribution1D(*lightContrib, minContributionScale, scene.lights.size(), false);
-		//LOG_FIRST_N(INFO, 1000) << "Initialized light distribution in voxel pi= " << i << " " << hashTable[i].distribution->ToString();
 	}, hashTableSize, 4096);
 }
 
@@ -696,7 +695,6 @@ const Distribution1D *PhotonBasedKdTreeLightDistribution::Lookup(const Point3f &
 	++nLookups;
 
 	const Float query_pt[3] = { p.x, p.y, p.z };
-	//std::vector<Float> lightContrib(scene.lights.size(), Float(0));
 	std::unordered_map<int, Float> lightContrib;
 	if (knn) {
 		// perform a k-nearest-neighbour search to find #nearestNeighbours
@@ -722,7 +720,6 @@ const Distribution1D *PhotonBasedKdTreeLightDistribution::Lookup(const Point3f &
 		nanoflann::SearchParams params;
 
 		const size_t nMatches = kdtree.radiusSearch(&query_pt[0], photonRadius, ret_matches, params);
-		//LOG_EVERY_N(INFO, 5000) << "radiusSearch(): radius=" << photonRadius << " -> " << nMatches << " matches";
 		for (size_t i = 0; i < nMatches; i++) {
 			// count photon only if it came from the positive hemisphere of the intersection point
 			if (Dot(cloud.pts[ret_matches[i].first].fromDir, Normalize(n)) >= 0) {
@@ -732,22 +729,7 @@ const Distribution1D *PhotonBasedKdTreeLightDistribution::Lookup(const Point3f &
 			}
 		}
 	}
-	/*
-	// We don't want to leave any lights with a zero probability; it's
-	// possible that a light contributes to points in the voxel even though
-	// we didn't find such a point when sampling above.  Therefore, compute
-	// a minimum (small) weight and ensure that all lights are given at
-	// least the corresponding probability.
-	Float sumContrib =
-		std::accumulate(lightContrib.begin(), lightContrib.end(), Float(0));
-	Float avgContrib = sumContrib / lightContrib.size();
-	Float minContrib = (avgContrib > 0) ? minContributionScale * avgContrib : 1;
-	for (size_t j = 0; j < lightContrib.size(); ++j) {
-		lightContrib[j] = std::max(lightContrib[j], minContrib);
-	}
-	//Distribution1D* distr = new Distribution1D(&lightContrib[0], int(lightContrib.size()));
-	*/	
-	//LOG_EVERY_N(INFO, 5000) << "Initialized light distribution in point p= " << p << " " << distr->ToString();
+
 	return SparseDistribution1D::createSparseDistribution1D(lightContrib, minContributionScale, scene.lights.size());
 }
 
@@ -878,8 +860,6 @@ const Distribution1D *PhotonBasedMlCdfKdTreeLightDistribution::Lookup(const Poin
 	++nLookups;
 
 	const Float query_pt[3] = { p.x, p.y, p.z };
-	//std::vector<Float> lightContrib(scene.lights.size(), Float(0));
-	std::unordered_map<int, Float> lightContrib;
 	if (knn) {
 		// perform a k-nearest-neighbour search to find #nearestNeighbours
 		size_t num_results = knCdf;
@@ -901,39 +881,10 @@ const Distribution1D *PhotonBasedMlCdfKdTreeLightDistribution::Lookup(const Poin
 		return iDistr;
 	}
 	else {
-		/*
-		// perform a search within searchradius photonRadius
-		std::vector<std::pair<size_t, Float>> ret_matches;
-		nanoflann::SearchParams params;
-
-		const size_t nMatches = kdtree.radiusSearch(&query_pt[0], photonRadius, ret_matches, params);
-		//LOG_EVERY_N(INFO, 5000) << "radiusSearch(): radius=" << photonRadius << " -> " << nMatches << " matches";
-		for (size_t i = 0; i < nMatches; i++) {
-			// count photon only if it came from the positive hemisphere of the intersection point
-			if (Dot(cloud.pts[ret_matches[i].first].fromDir, Normalize(n)) >= 0) {
-				int lightNum = cloud.pts[ret_matches[i].first].lightNum;
-				float beta = cloud.pts[ret_matches[i].first].beta;
-				lightContrib[lightNum] += beta;
-			}
-		}*/
+		// Radius search not implemented for mlcdftree
+		CHECK(0);
 	}
-	/*
-	// We don't want to leave any lights with a zero probability; it's
-	// possible that a light contributes to points in the voxel even though
-	// we didn't find such a point when sampling above.  Therefore, compute
-	// a minimum (small) weight and ensure that all lights are given at
-	// least the corresponding probability.
-	Float sumContrib =
-	std::accumulate(lightContrib.begin(), lightContrib.end(), Float(0));
-	Float avgContrib = sumContrib / lightContrib.size();
-	Float minContrib = (avgContrib > 0) ? minContributionScale * avgContrib : 1;
-	for (size_t j = 0; j < lightContrib.size(); ++j) {
-	lightContrib[j] = std::max(lightContrib[j], minContrib);
-	}
-	//Distribution1D* distr = new Distribution1D(&lightContrib[0], int(lightContrib.size()));
-	*/
-	//LOG_EVERY_N(INFO, 5000) << "Initialized light distribution in point p= " << p << " " << distr->ToString();
-	return SparseDistribution1D::createSparseDistribution1D(lightContrib, minContributionScale, scene.lights.size());;
+	return nullptr;
 }
 
 PhotonBasedCdfKdTreeLightDistribution::PhotonBasedCdfKdTreeLightDistribution(const ParamSet &params, const Scene &scene) :
@@ -977,8 +928,7 @@ PhotonBasedCdfKdTreeLightDistribution::PhotonBasedCdfKdTreeLightDistribution(con
 void PhotonBasedCdfKdTreeLightDistribution::buildCluster() {
 	std::vector<std::vector<size_t>> clusters;
 	photonkdtree.collectAllLeafs(clusters, photonkdtree.root_node);
-	LOG(INFO) << "NUM CLUSTERS = " << clusters.size();
-
+	//LOG(INFO) << "NUM CLUSTERS = " << clusters.size();
 	std::mutex m_screen;
 	ParallelFor([&](int cdfIndex) {
 		const auto& cluster = clusters[cdfIndex];
@@ -1001,17 +951,17 @@ void PhotonBasedCdfKdTreeLightDistribution::buildCluster() {
 			cdf.distr = SparseDistribution1D::createSparseDistribution1D(lightContrib, minContributionScale, scene.lights.size(), false);
 			cdf.weight = numPhotons;
 			m_screen.lock();
-			pbrt::objFile << "v " << cdf.x << " " << cdf.y << " " << cdf.z << "\n";
-			pbrt::objFile << "v " << cdf.x - 1.5f << " " << cdf.y << " " << cdf.z << "\nl -1 -2 \n";
+			//pbrt::objFile << "v " << cdf.x << " " << cdf.y << " " << cdf.z << "\n";
+			//pbrt::objFile << "v " << cdf.x - 1.5f << " " << cdf.y << " " << cdf.z << "\nl -1 -2 \n";
 			cdfCloud.pts.push_back(cdf);
 			m_screen.unlock();
 		}
 	}, clusters.size(), 1024);
-	LOG(INFO) << "NUM CLUSTERS AFTER = " << cdfCloud.pts.size();
+	//LOG(INFO) << "NUM CLUSTERS AFTER = " << cdfCloud.pts.size();
 }
 
 void PhotonBasedCdfKdTreeLightDistribution::shootPhotons(const Scene &scene) {
-	//std::mutex m_screen;
+	
 	ParallelFor([&](int photonIndex) {
 		// Follow photon path for _photonIndex_
 		uint64_t haltonIndex = photonIndex;
@@ -1054,10 +1004,6 @@ void PhotonBasedCdfKdTreeLightDistribution::shootPhotons(const Scene &scene) {
 			cloud.pts[photonIndex].z = isect.p.z;
 			cloud.pts[photonIndex].beta = fbeta;
 			cloud.pts[photonIndex].lightNum = lightNum;
-			//m_screen.lock();
-			//pbrt::objFile << "v " << isect.p.x << " " << isect.p.y << " " << isect.p.z << "\n";
-			//pbrt::objFile << "v " << photonRay.o.x << " " << photonRay.o.y << " " << photonRay.o.z << "\nl -1 -2 \n";
-			//m_screen.unlock();
 		}
 		else {
 			cloud.pts[photonIndex].x = FLT_MAX;
@@ -1072,12 +1018,10 @@ void PhotonBasedCdfKdTreeLightDistribution::shootPhotons(const Scene &scene) {
 const Distribution1D *PhotonBasedCdfKdTreeLightDistribution::Lookup(const Point3f &p, const Normal3f &n) const {
 	ProfilePhase _(Prof::LightDistribLookup);
 	++nLookups;
-	
 	const Float query_pt[3] = { p.x, p.y, p.z };
-	//std::vector<Float> lightContrib(scene.lights.size(), Float(0));
-	std::unordered_map<int, Float> lightContrib;
+
 	if (knn) {
-		// perform a k-nearest-neighbour search to find #nearestNeighbours
+		// perform a k-nearest-neighbour search to find #nearestNeighbours and interpolate them
 		size_t num_results = knCdf;
 		std::vector<size_t> ret_index(num_results);
 		std::vector<Float> out_dist_sqr(num_results);
@@ -1119,39 +1063,9 @@ const Distribution1D *PhotonBasedCdfKdTreeLightDistribution::Lookup(const Point3
 		return iDistr;
 	}
 	else {
-		/*
-		// perform a search within searchradius photonRadius
-		std::vector<std::pair<size_t, Float>> ret_matches;
-		nanoflann::SearchParams params;
-
-		const size_t nMatches = kdtree.radiusSearch(&query_pt[0], photonRadius, ret_matches, params);
-		//LOG_EVERY_N(INFO, 5000) << "radiusSearch(): radius=" << photonRadius << " -> " << nMatches << " matches";
-		for (size_t i = 0; i < nMatches; i++) {
-		// count photon only if it came from the positive hemisphere of the intersection point
-		if (Dot(cloud.pts[ret_matches[i].first].fromDir, Normalize(n)) >= 0) {
-		int lightNum = cloud.pts[ret_matches[i].first].lightNum;
-		float beta = cloud.pts[ret_matches[i].first].beta;
-		lightContrib[lightNum] += beta;
-		}
-		}
-		*/
+		// Radius search not implemented for cdftree
+		CHECK(0);
 	}
-	/*
-	// We don't want to leave any lights with a zero probability; it's
-	// possible that a light contributes to points in the voxel even though
-	// we didn't find such a point when sampling above.  Therefore, compute
-	// a minimum (small) weight and ensure that all lights are given at
-	// least the corresponding probability.
-	Float sumContrib =
-	std::accumulate(lightContrib.begin(), lightContrib.end(), Float(0));
-	Float avgContrib = sumContrib / lightContrib.size();
-	Float minContrib = (avgContrib > 0) ? minContributionScale * avgContrib : 1;
-	for (size_t j = 0; j < lightContrib.size(); ++j) {
-	lightContrib[j] = std::max(lightContrib[j], minContrib);
-	}
-	//Distribution1D* distr = new Distribution1D(&lightContrib[0], int(lightContrib.size()));
-	*/
-	//LOG_EVERY_N(INFO, 5000) << "Initialized light distribution in point p= " << p << " " << distr->ToString();
 	return photonDistrib.get();
 }
 
