@@ -344,7 +344,7 @@ void PhotonBasedVoxelLightDistribution::calcPackedPosAndHash(uint64_t* packedPos
 	CHECK_GE(*hash, 0);
 }
 
-const Distribution1D *PhotonBasedVoxelLightDistribution::getDistribution(uint64_t packedPos, uint64_t hash, int* nProbes, int& weight) const {
+const Distribution1D *PhotonBasedVoxelLightDistribution::getDistribution(uint64_t packedPos, uint64_t hash, int* nProbes) const {
 	// Now, see if the hash table already has an entry for the voxel. We'll
 	// use quadratic probing when the hash table entry is already used for
 	// another value; step stores the square root of the probe step.
@@ -359,13 +359,11 @@ const Distribution1D *PhotonBasedVoxelLightDistribution::getDistribution(uint64_
 			// We have a valid sampling distribution.
 			
 			//LOG_FIRST_N(INFO, 1000) << "PhotonBasedVoxelLightDistribution: Using photondistribution: " << entry.distribution->ToString();
-			weight = entry.weight;
 			return entry.distribution;
 		}
 		else if (entryPackedPos == invalidPackedPos) {
 			// no photon arrived on this hash, use powerdistribution instead
 			//LOG(INFO) << "PhotonBasedVoxelLightDistribution: Using powerdistribution, no photons arrived: " << packedPos;
-			weight = 1;
 			return photonDistrib.get();
 		}
 		else {
@@ -386,10 +384,9 @@ const Distribution1D *PhotonBasedVoxelLightDistribution::
 	std::vector<const Distribution1D*> distributions;
 	std::vector<Point3i> voxelIds;
 	std::vector<Float> influence;
-	int weight = 0;
-	distributions.push_back(getDistribution(packedPos, hash, nProbes, weight));
+	distributions.push_back(getDistribution(packedPos, hash, nProbes));
 	voxelIds.push_back(*voxelId);
-	influence.push_back(weight);
+	influence.push_back(1.0f);
 	
 	for (int i = 0; i < 3; ++i) {
 		Float offsetInVoxel = (fmod(offset[i] / (1.0f / nVoxels[i]), 1.0f)) - 0.5f;
@@ -404,9 +401,9 @@ const Distribution1D *PhotonBasedVoxelLightDistribution::
 			if (newId[i] >= 0 && newId[i] < nVoxels[i]) {
 				uint64_t newPackedPos, newHash;
 				calcPackedPosAndHash(&newPackedPos, &newHash, &newId);
-				distributions.push_back(getDistribution(newPackedPos, newHash, nProbes, weight));
+				distributions.push_back(getDistribution(newPackedPos, newHash, nProbes));
 				voxelIds.push_back(newId);
-				influence.push_back(influence[n] * abs(offsetInVoxel) * weight);
+				influence.push_back(influence[n] * abs(offsetInVoxel));
 
 				influence[n] *= (1 - abs(offsetInVoxel));
 			}
@@ -465,8 +462,7 @@ const Distribution1D *PhotonBasedVoxelLightDistribution::Lookup(const Point3f &p
 	if (interpolateCdf) {
 		distr = getInterpolatedDistribution(p, packedPos, hash, &voxelId, &nProbes);
 	} else {
-		int w;
-		distr = getDistribution(packedPos, hash, &nProbes, w);
+		distr = getDistribution(packedPos, hash, &nProbes);	
 	}
 
 	//ReportValue(nProbesPerLookup, nProbes);
@@ -585,7 +581,6 @@ void PhotonBasedVoxelLightDistribution::shootPhotons(const Scene &scene) {
 					//ReportValue(nProbesPerLookup, nProbes);
 					m_screen.lock();
 					(*lightContrib)[lightNum] += fbeta;
-					entry.weight++;
 					m_screen.unlock();
 					break;
 				} else {

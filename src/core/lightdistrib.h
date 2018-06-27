@@ -137,7 +137,7 @@ public:
 	
 private:
 	void calcPackedPosAndHash(uint64_t* packedPos, uint64_t* hash, Point3i* pi) const;
-	const Distribution1D *getDistribution(uint64_t packedPos, uint64_t hash, int* nProbes, int& weight) const;
+	const Distribution1D *getDistribution(uint64_t packedPos, uint64_t hash, int* nProbes) const;
 	const Distribution1D *getInterpolatedDistribution(const Point3f &p, uint64_t packedPos, uint64_t hash, Point3i* voxelId, int* nProbes) const;
 
 	const Scene &scene;
@@ -152,7 +152,6 @@ private:
 		std::atomic<uint64_t> packedPos;
 		std::unique_ptr<std::unordered_map<int, Float>> lightContrib;
 		Distribution1D *distribution;
-		int weight;
 	};
 	mutable std::unique_ptr<HashEntry[]> hashTable;
 	size_t hashTableSize;
