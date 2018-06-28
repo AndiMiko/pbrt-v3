@@ -203,6 +203,8 @@ private:
 	const float photonRadius;
 	const float nearestNeighbours;
 	const bool knn;
+	const std::string interpolation;
+	const float intSmooth;
 
 	typedef KDTreeSingleIndexAdaptor<
 		L2_Simple_Adaptor<Float, PhotonCloud<Float> >,
