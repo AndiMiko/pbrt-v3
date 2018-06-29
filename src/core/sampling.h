@@ -117,6 +117,8 @@ struct Distribution1D {
 		if (deleteAfterUsage) delete this;
 	}
 
+	virtual ~Distribution1D() {}
+
     // Distribution1D Public Data
     std::vector<Float> func, cdf;
     Float funcInt;
@@ -168,6 +170,8 @@ struct InterpolatedDistribution1D : Distribution1D {
 		CHECK(false);
 		// NOT IMPLEMENTED!
 	}
+
+	virtual ~InterpolatedDistribution1D() {}
 
 	std::vector<const Distribution1D*> distributions;
 
@@ -236,6 +240,8 @@ struct SparseDistribution1D : Distribution1D {
 		CHECK(false);
 		// NOT IMPLEMENTED!
 	}
+
+	virtual ~SparseDistribution1D() {}
 
 	std::unordered_map<int, int> backMap;
 	std::vector<int> sampleMap;
