@@ -234,7 +234,7 @@ void Film::WriteImage(Float splatScale) {
 		} else if (*pbrt::PbrtOptions.filenameInfo.interpolation == "shepexp") {
 			filenameInfo << "_exp";
 		} else {
-			filenameInfo << *pbrt::PbrtOptions.filenameInfo.interpolation;
+			filenameInfo << "_" << *pbrt::PbrtOptions.filenameInfo.interpolation;
 		}
 	}
 
