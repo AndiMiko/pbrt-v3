@@ -712,52 +712,52 @@ const Distribution1D *PhotonBasedKdTreeLightDistribution::Lookup(const Point3f &
 
 		if (interpolation == "shepard") {
 			for (size_t i = 0; i < num_results; i++) {
-				if (Dot(cloud.pts[ret_index[i]].fromDir, Normalize(n)) >= 0) {
+				//if (Dot(cloud.pts[ret_index[i]].fromDir, Normalize(n)) >= 0) {
 					int lightNum = cloud.pts[ret_index[i]].lightNum;
 					float beta = cloud.pts[ret_index[i]].beta;
 					Float d = std::max(0.0001f, pow(out_dist_sqr[i], intSmooth));
 					beta = beta / d;
 					lightContrib[lightNum] += beta;
-				}
+				//}
 			}
 		}
 		else if (interpolation == "modshep") {
 			Float maxR = 0;
 			for (size_t i = 0; i < num_results; i++) {
-				if (Dot(cloud.pts[ret_index[i]].fromDir, Normalize(n)) >= 0) {
+				//if (Dot(cloud.pts[ret_index[i]].fromDir, Normalize(n)) >= 0) {
 					maxR = std::max(maxR, out_dist_sqr[i]);
-				}
+				//}
 			}
 			maxR = pow(maxR, intSmooth);
 			for (size_t i = 0; i < num_results; i++) {
-				if (Dot(cloud.pts[ret_index[i]].fromDir, Normalize(n)) >= 0) {
+				//if (Dot(cloud.pts[ret_index[i]].fromDir, Normalize(n)) >= 0) {
 					int lightNum = cloud.pts[ret_index[i]].lightNum;
 					float beta = cloud.pts[ret_index[i]].beta;
 					Float d = std::max(0.0001f, pow(out_dist_sqr[i], intSmooth));
 					beta = pow((maxR - d) / (maxR * d), 2);
 					lightContrib[lightNum] += beta;
-				}
+				//}
 			}
 		}
 		else if (interpolation == "shepexp") {
 			for (size_t i = 0; i < num_results; i++) {
-				if (Dot(cloud.pts[ret_index[i]].fromDir, Normalize(n)) >= 0) {
+				//if (Dot(cloud.pts[ret_index[i]].fromDir, Normalize(n)) >= 0) {
 					int lightNum = cloud.pts[ret_index[i]].lightNum;
 					float beta = cloud.pts[ret_index[i]].beta;
 					Float d = std::max(0.0001f, pow(out_dist_sqr[i], intSmooth));
 					beta = exp(-pow(d / 8, 2));
 					lightContrib[lightNum] += beta;
-				}
+				//}
 			}
 		}
 		else if (interpolation == "none") {
 			for (size_t i = 0; i < num_results; i++) {
 				// count photon only if it came from the positive hemisphere of the intersection point
-				if (Dot(cloud.pts[ret_index[i]].fromDir, Normalize(n)) >= 0) {
+				//if (Dot(cloud.pts[ret_index[i]].fromDir, Normalize(n)) >= 0) {
 					int lightNum = cloud.pts[ret_index[i]].lightNum;
 					float beta = cloud.pts[ret_index[i]].beta;
 					lightContrib[lightNum] += beta;
-				}
+				//}
 			}
 		}
 
@@ -777,7 +777,14 @@ const Distribution1D *PhotonBasedKdTreeLightDistribution::Lookup(const Point3f &
 			}
 		}
 	}
-
+	/*
+	std::stringstream ss;
+	ss << "distr: ";
+	for (const auto& elem : lightContrib) {
+		ss << " i " << elem.first << " b " << elem.second;
+	}
+	LOG(INFO) << ss.str();
+	*/
 	return SparseDistribution1D::createSparseDistribution1D(lightContrib, minContributionScale, scene.lights.size());
 }
 
