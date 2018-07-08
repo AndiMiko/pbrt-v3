@@ -231,8 +231,10 @@ void Film::WriteImage(Float splatScale) {
 			filenameInfo << "_shp";
 		} else if (*pbrt::PbrtOptions.filenameInfo.interpolation == "modshep") {
 			filenameInfo << "_mshp";
-		} else if (*pbrt::PbrtOptions.filenameInfo.interpolation == "shepexp") {
-			filenameInfo << "_exp";
+		} else if (*pbrt::PbrtOptions.filenameInfo.interpolation == "kreg") {
+			filenameInfo << "_kr";
+		} else if (*pbrt::PbrtOptions.filenameInfo.interpolation == "adkreg") {
+			filenameInfo << "_akr";
 		} else {
 			filenameInfo << "_" << *pbrt::PbrtOptions.filenameInfo.interpolation;
 		}

@@ -1105,11 +1105,23 @@ const Distribution1D *PhotonBasedCdfKdTreeLightDistribution::Lookup(const Point3
 				Float d = std::max(0.0001f, pow(out_dist_sqr[i], intSmooth));
 				influence.push_back(cdfCloud.pts[ret_index[i]].weight * pow((maxR - d) / (maxR * d), 2));
 			}
-		} else if (interpolation == "shepexp") {
+		} else if (interpolation == "kreg") {
 			for (size_t i = 0; i < num_results; i++) {
 				distributions.push_back(cdfCloud.pts[ret_index[i]].distr);
-				Float d = std::max(0.0001f, pow(out_dist_sqr[i], intSmooth));
-				influence.push_back(cdfCloud.pts[ret_index[i]].weight * exp(-pow(d / 8, 2)));
+				Float d = sqrt(out_dist_sqr[i]);
+				influence.push_back(cdfCloud.pts[ret_index[i]].weight * exp(-pow(d / intSmooth, 2)));
+			}
+		} else if (interpolation == "adkreg") {
+			Float maxR = 0;
+			for (size_t i = 0; i < num_results; i++) {
+				maxR = std::max(maxR, out_dist_sqr[i]);
+			}
+			maxR = sqrt(maxR);
+			Float p = maxR / sqrt(-log(intSmooth));
+			for (size_t i = 0; i < num_results; i++) {
+				distributions.push_back(cdfCloud.pts[ret_index[i]].distr);
+				Float d = sqrt(out_dist_sqr[i]);
+				influence.push_back(cdfCloud.pts[ret_index[i]].weight * (exp(-pow(d / p, 2)) - intSmooth));
 			}
 		}
 
