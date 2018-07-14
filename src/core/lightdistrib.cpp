@@ -701,9 +701,13 @@ const Distribution1D *PhotonBasedKdTreeLightDistribution::Lookup(const Point3f &
 	const Float query_pt[3] = { p.x, p.y, p.z };
 	std::unordered_map<int, Float> lightContrib;
 	if (knn) {
-
+		int collected = 0;
+		int iter = 0;
+		while (iter < 3 && collected < nearestNeighbours / 2) {
+			iter++;
+			collected = 0;
 			// perform a k-nearest-neighbour search to find #nearestNeighbours
-			size_t num_results = nearestNeighbours;
+			size_t num_results = nearestNeighbours * (pow(2, iter) - 1);
 			std::vector<size_t> ret_index(num_results);
 			std::vector<Float> out_dist_sqr(num_results);
 
@@ -714,7 +718,7 @@ const Distribution1D *PhotonBasedKdTreeLightDistribution::Lookup(const Point3f &
 			if (interpolation == "shepard") {
 				for (size_t i = 0; i < num_results; i++) {
 					if (Dot(cloud.pts[ret_index[i]].fromDir, Normalize(n)) >= 0) {
-						
+						collected++;
 						int lightNum = cloud.pts[ret_index[i]].lightNum;
 						float beta = cloud.pts[ret_index[i]].beta;
 						Float d = std::max(0.001f, pow(out_dist_sqr[i], intSmooth));
@@ -733,7 +737,7 @@ const Distribution1D *PhotonBasedKdTreeLightDistribution::Lookup(const Point3f &
 				maxR = pow(maxR, intSmooth);
 				for (size_t i = 0; i < num_results; i++) {
 					if (Dot(cloud.pts[ret_index[i]].fromDir, Normalize(n)) >= 0) {
-						
+						collected++;
 						int lightNum = cloud.pts[ret_index[i]].lightNum;
 						float beta = cloud.pts[ret_index[i]].beta;
 						Float d = std::max(0.001f, pow(out_dist_sqr[i], intSmooth));
@@ -745,7 +749,7 @@ const Distribution1D *PhotonBasedKdTreeLightDistribution::Lookup(const Point3f &
 			else if (interpolation == "kreg") {
 				for (size_t i = 0; i < num_results; i++) {
 					if (Dot(cloud.pts[ret_index[i]].fromDir, Normalize(n)) >= 0) {
-						
+						collected++;
 						int lightNum = cloud.pts[ret_index[i]].lightNum;
 						float beta = cloud.pts[ret_index[i]].beta;
 						Float d = sqrt(out_dist_sqr[i]);
@@ -764,7 +768,7 @@ const Distribution1D *PhotonBasedKdTreeLightDistribution::Lookup(const Point3f &
 				Float p = maxR / sqrt(-log(intSmooth));
 				for (size_t i = 0; i < num_results; i++) {
 					if (Dot(cloud.pts[ret_index[i]].fromDir, Normalize(n)) >= 0) {
-						
+						collected++;
 						int lightNum = cloud.pts[ret_index[i]].lightNum;
 						float beta = cloud.pts[ret_index[i]].beta;
 						Float d = sqrt(out_dist_sqr[i]);
@@ -776,14 +780,14 @@ const Distribution1D *PhotonBasedKdTreeLightDistribution::Lookup(const Point3f &
 				for (size_t i = 0; i < num_results; i++) {
 					// count photon only if it came from the positive hemisphere of the intersection point
 					if (Dot(cloud.pts[ret_index[i]].fromDir, Normalize(n)) >= 0) {
-						
+						collected++;
 						int lightNum = cloud.pts[ret_index[i]].lightNum;
 						float beta = cloud.pts[ret_index[i]].beta;
 						lightContrib[lightNum] += beta;
 					}
 				}
 			}
-		
+		}
 	} else {
 		// perform a search within searchradius photonRadius
 		std::vector<std::pair<size_t, Float>> ret_matches;
