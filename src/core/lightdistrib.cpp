@@ -701,67 +701,89 @@ const Distribution1D *PhotonBasedKdTreeLightDistribution::Lookup(const Point3f &
 	const Float query_pt[3] = { p.x, p.y, p.z };
 	std::unordered_map<int, Float> lightContrib;
 	if (knn) {
-		// perform a k-nearest-neighbour search to find #nearestNeighbours
-		size_t num_results = nearestNeighbours;
-		std::vector<size_t> ret_index(num_results);
-		std::vector<Float> out_dist_sqr(num_results);
 
-		num_results = kdtree.knnSearch(&query_pt[0], num_results, &ret_index[0], &out_dist_sqr[0]);
-		ret_index.resize(num_results);
-		out_dist_sqr.resize(num_results);
+			// perform a k-nearest-neighbour search to find #nearestNeighbours
+			size_t num_results = nearestNeighbours;
+			std::vector<size_t> ret_index(num_results);
+			std::vector<Float> out_dist_sqr(num_results);
 
-		if (interpolation == "shepard") {
-			for (size_t i = 0; i < num_results; i++) {
-				//if (Dot(cloud.pts[ret_index[i]].fromDir, Normalize(n)) >= 0) {
-					int lightNum = cloud.pts[ret_index[i]].lightNum;
-					float beta = cloud.pts[ret_index[i]].beta;
-					Float d = std::max(0.0001f, pow(out_dist_sqr[i], intSmooth));
-					beta = beta / d;
-					lightContrib[lightNum] += beta;
-				//}
-			}
-		}
-		else if (interpolation == "modshep") {
-			Float maxR = 0;
-			for (size_t i = 0; i < num_results; i++) {
-				//if (Dot(cloud.pts[ret_index[i]].fromDir, Normalize(n)) >= 0) {
-					maxR = std::max(maxR, out_dist_sqr[i]);
-				//}
-			}
-			maxR = pow(maxR, intSmooth);
-			for (size_t i = 0; i < num_results; i++) {
-				//if (Dot(cloud.pts[ret_index[i]].fromDir, Normalize(n)) >= 0) {
-					int lightNum = cloud.pts[ret_index[i]].lightNum;
-					float beta = cloud.pts[ret_index[i]].beta;
-					Float d = std::max(0.0001f, pow(out_dist_sqr[i], intSmooth));
-					beta = pow((maxR - d) / (maxR * d), 2);
-					lightContrib[lightNum] += beta;
-				//}
-			}
-		}
-		else if (interpolation == "shepexp") {
-			for (size_t i = 0; i < num_results; i++) {
-				//if (Dot(cloud.pts[ret_index[i]].fromDir, Normalize(n)) >= 0) {
-					int lightNum = cloud.pts[ret_index[i]].lightNum;
-					float beta = cloud.pts[ret_index[i]].beta;
-					Float d = std::max(0.0001f, pow(out_dist_sqr[i], intSmooth));
-					beta = exp(-pow(d / 8, 2));
-					lightContrib[lightNum] += beta;
-				//}
-			}
-		}
-		else if (interpolation == "none") {
-			for (size_t i = 0; i < num_results; i++) {
-				// count photon only if it came from the positive hemisphere of the intersection point
-				//if (Dot(cloud.pts[ret_index[i]].fromDir, Normalize(n)) >= 0) {
-					int lightNum = cloud.pts[ret_index[i]].lightNum;
-					float beta = cloud.pts[ret_index[i]].beta;
-					lightContrib[lightNum] += beta;
-				//}
-			}
-		}
+			num_results = kdtree.knnSearch(&query_pt[0], num_results, &ret_index[0], &out_dist_sqr[0]);
+			ret_index.resize(num_results);
+			out_dist_sqr.resize(num_results);
 
-
+			if (interpolation == "shepard") {
+				for (size_t i = 0; i < num_results; i++) {
+					if (Dot(cloud.pts[ret_index[i]].fromDir, Normalize(n)) >= 0) {
+						
+						int lightNum = cloud.pts[ret_index[i]].lightNum;
+						float beta = cloud.pts[ret_index[i]].beta;
+						Float d = std::max(0.001f, pow(out_dist_sqr[i], intSmooth));
+						beta = beta / d;
+						lightContrib[lightNum] += beta;
+					}
+				}
+			}
+			else if (interpolation == "modshep") {
+				Float maxR = 0;
+				for (size_t i = 0; i < num_results; i++) {
+					if (Dot(cloud.pts[ret_index[i]].fromDir, Normalize(n)) >= 0) {
+						maxR = std::max(maxR, out_dist_sqr[i]);
+					}
+				}
+				maxR = pow(maxR, intSmooth);
+				for (size_t i = 0; i < num_results; i++) {
+					if (Dot(cloud.pts[ret_index[i]].fromDir, Normalize(n)) >= 0) {
+						
+						int lightNum = cloud.pts[ret_index[i]].lightNum;
+						float beta = cloud.pts[ret_index[i]].beta;
+						Float d = std::max(0.001f, pow(out_dist_sqr[i], intSmooth));
+						beta = pow((maxR - d) / (maxR * d), 2);
+						lightContrib[lightNum] += beta;
+					}
+				}
+			}
+			else if (interpolation == "kreg") {
+				for (size_t i = 0; i < num_results; i++) {
+					if (Dot(cloud.pts[ret_index[i]].fromDir, Normalize(n)) >= 0) {
+						
+						int lightNum = cloud.pts[ret_index[i]].lightNum;
+						float beta = cloud.pts[ret_index[i]].beta;
+						Float d = sqrt(out_dist_sqr[i]);
+						lightContrib[lightNum] += exp(-pow(d / intSmooth, 2));
+					}
+				}
+			}
+			else if (interpolation == "adkreg") {
+				Float maxR = 0;
+				for (size_t i = 0; i < num_results; i++) {
+					if (Dot(cloud.pts[ret_index[i]].fromDir, Normalize(n)) >= 0) {
+						maxR = std::max(maxR, out_dist_sqr[i]);
+					}
+				}
+				maxR = sqrt(maxR);
+				Float p = maxR / sqrt(-log(intSmooth));
+				for (size_t i = 0; i < num_results; i++) {
+					if (Dot(cloud.pts[ret_index[i]].fromDir, Normalize(n)) >= 0) {
+						
+						int lightNum = cloud.pts[ret_index[i]].lightNum;
+						float beta = cloud.pts[ret_index[i]].beta;
+						Float d = sqrt(out_dist_sqr[i]);
+						lightContrib[lightNum] += exp(-pow(d / p, 2)) - intSmooth;
+					}
+				}
+			}
+			else if (interpolation == "none") {
+				for (size_t i = 0; i < num_results; i++) {
+					// count photon only if it came from the positive hemisphere of the intersection point
+					if (Dot(cloud.pts[ret_index[i]].fromDir, Normalize(n)) >= 0) {
+						
+						int lightNum = cloud.pts[ret_index[i]].lightNum;
+						float beta = cloud.pts[ret_index[i]].beta;
+						lightContrib[lightNum] += beta;
+					}
+				}
+			}
+		
 	} else {
 		// perform a search within searchradius photonRadius
 		std::vector<std::pair<size_t, Float>> ret_matches;
