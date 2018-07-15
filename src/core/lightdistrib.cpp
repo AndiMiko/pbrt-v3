@@ -362,9 +362,9 @@ const Distribution1D *PhotonBasedVoxelLightDistribution::getDistribution(uint64_
 			return entry.distribution;
 		}
 		else if (entryPackedPos == invalidPackedPos) {
-			// no photon arrived on this hash, use powerdistribution instead
+			// no photon arrived on this hash, use defaultdistribution instead
 			//LOG(INFO) << "PhotonBasedVoxelLightDistribution: Using powerdistribution, no photons arrived: " << packedPos;
-			return photonDistrib.get();
+			return defaultDistrib.get();
 		}
 		else {
 			// The hash table entry we're checking has already been
@@ -427,8 +427,9 @@ PhotonBasedVoxelLightDistribution::PhotonBasedVoxelLightDistribution(const Param
 	pbrt::PbrtOptions.filenameInfo.interpolateCdf = &interpolateCdf;
 	pbrt::PbrtOptions.filenameInfo.minContributionScale = &minContributionScale;
 
+	std::vector<Float> prob(scene.lights.size(), Float(1));
+	defaultDistrib.reset(new Distribution1D(&prob[0], int(prob.size())));
 	if (params.FindOneString("photonsampling", "uni") == "uni") {
-		std::vector<Float> prob(scene.lights.size(), Float(1));
 		photonDistrib.reset(new Distribution1D(&prob[0], int(prob.size())));
 	} else {
 		photonDistrib = ComputeLightPowerDistribution(scene);

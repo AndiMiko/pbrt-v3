@@ -142,6 +142,7 @@ private:
 
 	const Scene &scene;
 	std::unique_ptr<Distribution1D> photonDistrib;
+	std::unique_ptr<Distribution1D> defaultDistrib;
 	const int photonCount;
 	const int maxVoxels;
 	const bool interpolateCdf;
