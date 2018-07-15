@@ -390,7 +390,7 @@ const Distribution1D *PhotonBasedVoxelLightDistribution::
 	
 	for (int i = 0; i < 3; ++i) {
 		Float offsetInVoxel = (fmod(offset[i] / (1.0f / nVoxels[i]), 1.0f)) - 0.5f;
-		if (offsetInVoxel == 0.f) continue; // skip this direction as there is no influence
+		//if (offsetInVoxel == 0.f) continue; // skip this direction as there is no influence
 		int size = voxelIds.size();
 		for (int n = 0; n < size; ++n) {
 			Point3i newId = Point3i(voxelIds[n]);
@@ -403,13 +403,18 @@ const Distribution1D *PhotonBasedVoxelLightDistribution::
 				calcPackedPosAndHash(&newPackedPos, &newHash, &newId);
 				distributions.push_back(getDistribution(newPackedPos, newHash, nProbes));
 				voxelIds.push_back(newId);
-				influence.push_back(influence[n] * abs(offsetInVoxel));
+				float x = abs(offsetInVoxel);
+				influence.push_back(influence[n] * x * x * x * (x * (x * 6 - 15) + 10));
 
-				influence[n] *= (1 - abs(offsetInVoxel));
+				x = (1 - abs(offsetInVoxel));
+				influence[n] *= x * x * x * (x * (x * 6 - 15) + 10);
 			}
 
 		}
 	}
+	//for (int i = 0; i < influence.size(); i++) {
+	//	influence[i] = pow(influence[i], 2);
+	//}
 	InterpolatedDistribution1D* iDistr = new InterpolatedDistribution1D(&influence[0], &distributions[0], influence.size());
 	iDistr->deleteAfterUsage = true;
 	return iDistr;
