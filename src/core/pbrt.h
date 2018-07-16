@@ -191,6 +191,7 @@ struct Options {
 		const int* photonThreshold = nullptr;
 		const float* intSmooth = nullptr;
 		const std::string* interpolation = nullptr;
+		const int* maxVoxels = nullptr;
 
 		float renderTime;
 

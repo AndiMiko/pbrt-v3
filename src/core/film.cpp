@@ -250,6 +250,7 @@ void Film::WriteImage(Float splatScale) {
 	if (pbrt::PbrtOptions.filenameInfo.minContributionScale) filenameInfo << "_mc" << *pbrt::PbrtOptions.filenameInfo.minContributionScale;
 	if (pbrt::PbrtOptions.filenameInfo.intSmooth) filenameInfo << "_sm" << *pbrt::PbrtOptions.filenameInfo.intSmooth;
 	if (pbrt::PbrtOptions.filenameInfo.photonThreshold) filenameInfo << "_pT" << *pbrt::PbrtOptions.filenameInfo.photonThreshold;
+	if (pbrt::PbrtOptions.filenameInfo.maxVoxels) filenameInfo << "_Vox" << *pbrt::PbrtOptions.filenameInfo.maxVoxels;
 
 	filenameInfo << "_" << (std::time(0) % 100000);
 	size_t lastindex = filename.find_last_of(".");
