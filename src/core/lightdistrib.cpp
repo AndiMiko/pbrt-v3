@@ -705,7 +705,7 @@ const Distribution1D *PhotonBasedKdTreeLightDistribution::Lookup(const Point3f &
 	if (knn) {
 		int collected = 0;
 		int iter = 0;
-		while (iter < 3 && collected < nearestNeighbours / 2) {
+		while (iter < 1 && collected < nearestNeighbours / 2) {
 			iter++;
 			collected = 0;
 			// perform a k-nearest-neighbour search to find #nearestNeighbours
