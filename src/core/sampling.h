@@ -214,6 +214,8 @@ struct SparseDistribution1D : Distribution1D {
 			// sample from uniform part
 			Float newU = (u - (1 - uniProb)) / uniProb;
 			sampledNum = newU * nAll;
+			// fix newU == 1.0, give back the probability to sample 0 because u is element of (0,1]
+			sampledNum = sampledNum == nAll ? 0 : sampledNum; 
 		} else {
 			// sample from sparse part
 			Float newU = u / (1 - uniProb);
