@@ -704,9 +704,8 @@ const Distribution1D *PhotonBasedKdTreeLightDistribution::Lookup(const Point3f &
 	std::unordered_map<int, Float> lightContrib;
 	if (knn) {
 
-		int iter = 0;
 		// perform a k-nearest-neighbour search to find #nearestNeighbours
-		size_t num_results = nearestNeighbours * (pow(2, iter) - 1);
+		size_t num_results = nearestNeighbours;
 		std::vector<size_t> ret_index(num_results);
 		std::vector<Float> out_dist_sqr(num_results);
 
